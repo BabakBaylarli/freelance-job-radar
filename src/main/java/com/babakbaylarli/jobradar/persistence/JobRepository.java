@@ -20,6 +20,8 @@ public interface JobRepository extends JpaRepository<JobEntity, Long> {
 
     long countByDeliveryAndUserStatus(Delivery delivery, UserStatus userStatus);
 
+    long countByDeliveryInAndUserStatus(Collection<Delivery> delivery, UserStatus userStatus);
+
     /** How many individual (live) messages went out since the given instant - drives the hourly limit. */
     long countByDeliveryAndNotifiedAtAfter(Delivery delivery, Instant since);
 
