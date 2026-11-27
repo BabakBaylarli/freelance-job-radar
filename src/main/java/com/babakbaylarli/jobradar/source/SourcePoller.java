@@ -35,11 +35,17 @@ public class SourcePoller {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
     public SourcePoller(List<JobSource> sources, JobIngestService ingestService, SourceStateRepository states, Clock clock) {
-        this.sources = sources;
+        this.sources = sources.stream().filter(SourcePoller::runnable).toList();
         this.ingestService = ingestService;
         this.states = states;
         this.clock = clock;
         log.info("event=sources_enabled sources={}", sources.stream().map(JobSource::id).toList());
+    }
+
+    private static boolean runnable(JobSource source) {
+        source.unavailableReason().ifPresent(reason ->
+                log.warn("event=source_skipped source={} reason=\"{}\"", source.id(), reason));
+        return source.unavailableReason().isEmpty();
     }
 
     @Scheduled(initialDelayString = "${jobradar.poll-tick-initial-delay:PT10S}", fixedDelayString = "${jobradar.poll-tick:PT1M}")
@@ -85,6 +91,7 @@ public class SourcePoller {
         try {
             List<Job> jobs = source.fetch();
             IngestResult result = ingestService.ingest(jobs);
+            source.afterIngest();
             state.recordSuccess(clock.instant(), result.fetched(), result.created());
             log.info("event=poll_ok source={} fetched={} new={} matched={}",
                     source.id(), result.fetched(), result.created(), result.matched());

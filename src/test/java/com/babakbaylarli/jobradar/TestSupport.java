@@ -36,7 +36,7 @@ public final class TestSupport {
     }
 
     public static Matching matching(int minScore, List<Keyword> include, List<String> exclude) {
-        return new Matching(include, exclude, minScore, Duration.ofDays(7));
+        return new Matching(include, exclude, minScore, Duration.ofDays(7), java.util.Map.of());
     }
 
     /** Properties pointing every source at {@code baseUrl}, with millisecond backoff so retry tests are fast. */
@@ -45,6 +45,15 @@ public final class TestSupport {
     }
 
     public static JobRadarProperties props(String baseUrl, boolean hnRemoteOnly) {
+        return props(baseUrl, hnRemoteOnly, true);
+    }
+
+    /** Same, but without any token / contact e-mail configured. */
+    public static JobRadarProperties propsWithoutSecrets(String baseUrl) {
+        return props(baseUrl, true, false);
+    }
+
+    private static JobRadarProperties props(String baseUrl, boolean hnRemoteOnly, boolean secrets) {
         return new JobRadarProperties(
                 new Telegram("", null),
                 new Ai("", "claude-sonnet-5-5", null, 2000, "medium", Duration.ofSeconds(30)),
@@ -55,7 +64,17 @@ public final class TestSupport {
                         new WeWorkRemotely(true, Duration.ofHours(3), baseUrl, List.of("/feed-a.rss", "/feed-b.rss")),
                         new Remotive(true, Duration.ofHours(6), baseUrl, "software-dev"),
                         new RemoteOk(true, Duration.ofHours(6), baseUrl),
-                        new HackerNews(true, Duration.ofHours(6), baseUrl, hnRemoteOnly)),
+                        new HackerNews(true, Duration.ofHours(6), baseUrl, hnRemoteOnly),
+                        new JobRadarProperties.Freelancer(true, Duration.ofHours(6), baseUrl, secrets ? "fl-token" : null, List.of("java"), 30),
+                        new JobRadarProperties.Himalayas(true, Duration.ofHours(6), baseUrl, secrets ? "him-key" : null, List.of("java")),
+                        new JobRadarProperties.Jobicy(true, Duration.ofHours(6), baseUrl, List.of("java"), 50),
+                        new JobRadarProperties.WorkingNomads(true, Duration.ofHours(6), baseUrl),
+                        new JobRadarProperties.FlRu(true, Duration.ofHours(3), baseUrl, List.of("/rss/all.xml?category=5")),
+                        new JobRadarProperties.Hh(true, Duration.ofHours(6), baseUrl, secrets ? "me@example.org" : null, List.of("java"), "REMOTE", List.of("PROJECT", "PART"), 50),
+                        new JobRadarProperties.Freelancehunt(true, Duration.ofHours(3), baseUrl, secrets ? "fh-token" : null, List.of()),
+                        new JobRadarProperties.Dou(true, Duration.ofHours(6), baseUrl, List.of("Java"), true),
+                        new JobRadarProperties.EmailAlerts(false, Duration.ofMinutes(15), "localhost", 993, null, null, "JobAlerts", 30),
+                        new JobRadarProperties.TelegramChannels(false, Duration.ofMinutes(30), null, null, null, "/tmp/tdlight", List.of(), 50)),
                 "config/profile.md");
     }
 }

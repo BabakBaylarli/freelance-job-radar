@@ -6,10 +6,12 @@ import com.babakbaylarli.jobradar.persistence.Delivery;
 import com.babakbaylarli.jobradar.persistence.JobEntity;
 import com.babakbaylarli.jobradar.persistence.JobRepository;
 import com.babakbaylarli.jobradar.persistence.UserStatus;
+import com.babakbaylarli.jobradar.source.Market;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -68,8 +70,12 @@ public class NotificationService {
         }
         Instant now = clock.instant();
         QuietHoursSettings quiet = settings.quietHours();
-        List<JobEntity> pending = jobs.findByDeliveryInAndUserStatusOrderByScoreDescIdDesc(
-                List.of(Delivery.PENDING), UserStatus.NONE, PageRequest.of(0, PENDING_BATCH));
+        Set<Market> markets = state.enabledMarkets();
+        if (markets.isEmpty()) {
+            return; // every market switched off with /markets
+        }
+        List<JobEntity> pending = jobs.findByDeliveryInAndUserStatusAndMarketInOrderByScoreDescIdDesc(
+                List.of(Delivery.PENDING), UserStatus.NONE, markets, PageRequest.of(0, PENDING_BATCH));
 
         if (quiet.isQuiet(now)) {
             pending.forEach(job -> {
@@ -107,18 +113,18 @@ public class NotificationService {
         if (sent > 0 || deferred > 0) {
             log.info("event=flush sent={} deferred_over_limit={}", sent, deferred);
         }
-        maybeSendDigest(now);
+        maybeSendDigest(now, markets);
     }
 
-    private void maybeSendDigest(Instant now) {
-        if (jobs.countByDeliveryAndUserStatus(Delivery.DEFERRED, UserStatus.NONE) == 0) {
+    private void maybeSendDigest(Instant now, Set<Market> markets) {
+        if (jobs.countByDeliveryAndUserStatusAndMarketIn(Delivery.DEFERRED, UserStatus.NONE, markets) == 0) {
             return;
         }
         boolean due = state.lastDigestAt()
                 .map(last -> !now.isBefore(last.plus(settings.digestMinInterval())))
                 .orElse(true);
         if (due) {
-            sendDigest(List.of(Delivery.DEFERRED), "Digest", now);
+            sendDigest(List.of(Delivery.DEFERRED), "Digest", now, markets);
         }
     }
 
@@ -127,16 +133,17 @@ public class NotificationService {
         if (!gateway.enabled() || ownerChatId == null) {
             return 0;
         }
-        return sendDigest(WAITING, "Top unseen matches", clock.instant());
+        Set<Market> markets = state.enabledMarkets();
+        return markets.isEmpty() ? 0 : sendDigest(WAITING, "Top unseen matches", clock.instant(), markets);
     }
 
-    private int sendDigest(List<Delivery> from, String title, Instant now) {
-        List<JobEntity> top = jobs.findByDeliveryInAndUserStatusOrderByScoreDescIdDesc(
-                from, UserStatus.NONE, PageRequest.of(0, settings.digestSize()));
+    private int sendDigest(List<Delivery> from, String title, Instant now, Set<Market> markets) {
+        List<JobEntity> top = jobs.findByDeliveryInAndUserStatusAndMarketInOrderByScoreDescIdDesc(
+                from, UserStatus.NONE, markets, PageRequest.of(0, settings.digestSize()));
         if (top.isEmpty()) {
             return 0;
         }
-        long totalWaiting = jobs.countByDeliveryInAndUserStatus(from, UserStatus.NONE);
+        long totalWaiting = jobs.countByDeliveryInAndUserStatusAndMarketIn(from, UserStatus.NONE, markets);
         MessageFormatter.DigestMessage message = formatter.digest(top, totalWaiting - top.size(), title + " — " + top.size() + " match" + (top.size() == 1 ? "" : "es"));
         try {
             gateway.sendHtml(ownerChatId, message.html(), message.keyboard());

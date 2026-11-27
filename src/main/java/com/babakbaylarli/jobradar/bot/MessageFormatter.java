@@ -3,15 +3,19 @@ package com.babakbaylarli.jobradar.bot;
 import com.babakbaylarli.jobradar.config.JobRadarProperties;
 import com.babakbaylarli.jobradar.config.JobRadarProperties.Keyword;
 import com.babakbaylarli.jobradar.persistence.JobEntity;
+import com.babakbaylarli.jobradar.persistence.JobRepository.MarketStats;
 import com.babakbaylarli.jobradar.persistence.JobRepository.SourceStats;
 import com.babakbaylarli.jobradar.persistence.SourceStateEntity;
 import com.babakbaylarli.jobradar.source.HtmlText;
+import com.babakbaylarli.jobradar.source.Market;
+import com.babakbaylarli.jobradar.source.SourceCatalog;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +28,7 @@ public class MessageFormatter {
     static final String DRAFT = "d";
     static final String SAVE = "s";
     static final String HIDE = "h";
+    static final String MARKET = "m";
 
     public record DigestMessage(String html, Keyboard keyboard, List<JobEntity> included) {}
 
@@ -32,6 +37,7 @@ public class MessageFormatter {
     public String jobCard(JobEntity job) {
         StringBuilder sb = new StringBuilder();
         sb.append("<b>").append(escape(HtmlText.truncate(job.getTitle(), 200))).append("</b>\n");
+        sb.append(job.getMarket().flag()).append(' ').append(job.getJobType().label()).append('\n');
         sb.append(companyLine(job)).append('\n');
         sb.append("🎯 Score ").append(job.getScore());
         if (!job.getMatchedKeywords().isEmpty()) {
@@ -46,6 +52,12 @@ public class MessageFormatter {
             sb.append('\n').append(escape(summary)).append('\n');
         }
         sb.append("\n🔗 ").append(link(job.getUrl(), "View on " + sourceName(job.getSource())));
+        job.getAlsoOn().forEach(entry -> {
+            int bar = entry.indexOf('|');
+            if (bar > 0) {
+                sb.append("\n🔗 ").append(link(entry.substring(bar + 1), "Also on " + sourceName(entry.substring(0, bar))));
+            }
+        });
         return sb.toString();
     }
 
@@ -106,13 +118,19 @@ public class MessageFormatter {
 
     private String digestEntry(int number, JobEntity job) {
         StringBuilder sb = new StringBuilder();
-        sb.append(number).append(". <b>").append(escape(HtmlText.truncate(job.getTitle(), 110))).append("</b>\n");
+        sb.append(number).append(". ").append(job.getMarket().flag()).append(" <b>").append(escape(HtmlText.truncate(job.getTitle(), 110))).append("</b>\n");
         sb.append("   ").append(companyLine(job)).append(" · score ").append(job.getScore()).append('\n');
         if (!job.getMatchedKeywords().isEmpty()) {
             sb.append("   🎯 ").append(escape(String.join(", ", job.getMatchedKeywords()))).append('\n');
         }
-        sb.append("   🔗 ").append(link(job.getUrl(), "View on " + sourceName(job.getSource()))).append('\n');
-        return sb.toString();
+        sb.append("   🔗 ").append(link(job.getUrl(), "View on " + sourceName(job.getSource())));
+        job.getAlsoOn().forEach(entry -> {
+            int bar = entry.indexOf('|');
+            if (bar > 0) {
+                sb.append(" · ").append(link(entry.substring(bar + 1), sourceName(entry.substring(0, bar))));
+            }
+        });
+        return sb.append('\n').toString();
     }
 
     // ---- lists and info ---------------------------------------------------------------------------------------
@@ -135,13 +153,15 @@ public class MessageFormatter {
         return sb.toString();
     }
 
-    public String stats(List<String> sourceIds, List<SourceStats> stats, Map<String, SourceStateEntity> states, Instant now) {
+    public String stats(List<String> sourceIds, List<SourceStats> stats, List<MarketStats> markets,
+            Map<String, SourceStateEntity> states, Instant now) {
         Map<String, SourceStats> byId = stats.stream().collect(Collectors.toMap(SourceStats::getSource, s -> s));
         List<String> ids = new ArrayList<>(sourceIds);
         byId.keySet().stream().filter(id -> !ids.contains(id)).forEach(ids::add);
         if (ids.isEmpty()) {
             return "📊 No sources are enabled.";
         }
+        ids.sort(java.util.Comparator.naturalOrder());
         StringBuilder sb = new StringBuilder("📊 <b>Last 7 days</b>\n");
         long totalSeen = 0;
         long totalMatched = 0;
@@ -152,10 +172,22 @@ public class MessageFormatter {
             totalSeen += seen;
             totalMatched += matched;
             sb.append("\n• <b>").append(escape(sourceName(id))).append("</b> — seen ").append(seen)
-                    .append(", matched ").append(matched).append('\n').append("   ").append(pollStatus(states.get(id), now));
+                    .append(", matched ").append(matched).append('\n').append("   ").append(pollStatus(stateFor(states, id), now));
         }
         sb.append("\n\nTotal: seen ").append(totalSeen).append(", matched ").append(totalMatched);
+        if (!markets.isEmpty()) {
+            sb.append("\n\n<b>By market</b>\n").append(markets.stream()
+                    .map(m -> m.getMarket().flag() + " seen " + m.getSeen() + ", matched " + m.getMatched())
+                    .collect(Collectors.joining("\n")));
+        }
         return sb.toString();
+    }
+
+    /** Sub-sources such as {@code email:upwork} share the poll state of their parent source ({@code email}). */
+    private static SourceStateEntity stateFor(Map<String, SourceStateEntity> states, String id) {
+        SourceStateEntity own = states.get(id);
+        int colon = id.indexOf(':');
+        return own != null || colon < 0 ? own : states.get(id.substring(0, colon));
     }
 
     private static String pollStatus(SourceStateEntity state, Instant now) {
@@ -190,6 +222,48 @@ public class MessageFormatter {
         return sb.toString();
     }
 
+    public String sources(List<SourceCatalog.Entry> entries, Map<String, SourceStateEntity> states,
+            Map<String, Long> last24h, Instant now) {
+        StringBuilder sb = new StringBuilder("🔌 <b>Sources</b>\n");
+        for (SourceCatalog.Entry entry : entries) {
+            sb.append("\n<b>").append(escape(entry.displayName())).append("</b> — ");
+            switch (entry.status()) {
+                case DISABLED -> sb.append("⚪ off (disabled in config)\n");
+                case SKIPPED -> sb.append("🟡 skipped: ").append(escape(entry.reason())).append('\n');
+                case ACTIVE -> {
+                    SourceStateEntity state = states.get(entry.id());
+                    sb.append("🟢 on");
+                    if (state == null || state.getLastPolledAt() == null) {
+                        sb.append(" · not polled yet\n");
+                    } else {
+                        sb.append(" · last success ").append(state.getLastSuccessAt() == null ? "never"
+                                : humanize(Duration.between(state.getLastSuccessAt(), now)) + " ago").append('\n');
+                        if ("FAILED".equals(state.getLastStatus())) {
+                            sb.append("   ⚠️ last error: ").append(escape(HtmlText.truncate(String.valueOf(state.getLastError()), 120))).append('\n');
+                        }
+                    }
+                    sb.append("   jobs in last 24h: ").append(last24h.getOrDefault(entry.id(), 0L)).append('\n');
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    public String markets(Set<Market> enabled) {
+        return "🗺 <b>Markets</b>\nTap a market to switch it on or off. Jobs from switched-off markets are still collected "
+                + "but not sent.\n\nOn: " + (enabled.isEmpty() ? "<i>none</i>" : enabled.stream()
+                .map(m -> m.flag() + " " + m.label()).collect(Collectors.joining(", ")));
+    }
+
+    public Keyboard marketsKeyboard(Set<Market> enabled) {
+        List<List<Button>> rows = new ArrayList<>();
+        for (Market market : Market.values()) {
+            rows.add(List.of(new Button((enabled.contains(market) ? "✅ " : "⬜ ") + market.flag() + " " + market.label(),
+                    MARKET + ":" + market.name())));
+        }
+        return new Keyboard(rows);
+    }
+
     public String welcome(boolean paused, boolean aiEnabled) {
         return "👋 <b>Freelance Job Radar</b>\nI watch official remote-job feeds, send you the jobs that match your skills "
                 + "and draft tailored proposals on demand.\n\n"
@@ -202,6 +276,8 @@ public class MessageFormatter {
         return """
                 <b>Commands</b>
                 /digest — top 10 unseen matches right now
+                /sources — every source: on/off, last success, errors
+                /markets — switch 🌍 🇷🇺 🇺🇦 🇦🇿 on or off
                 /saved — jobs you saved
                 /stats — jobs seen / matched per source (7 days)
                 /keywords — current matching config
@@ -232,13 +308,7 @@ public class MessageFormatter {
     }
 
     public static String sourceName(String id) {
-        return switch (id) {
-            case "weworkremotely" -> "We Work Remotely";
-            case "remotive" -> "Remotive";
-            case "remoteok" -> "RemoteOK";
-            case "hackernews" -> "Hacker News";
-            default -> id;
-        };
+        return SourceCatalog.displayName(id);
     }
 
     static String humanize(Duration duration) {

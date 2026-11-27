@@ -114,4 +114,30 @@ class SourcePollerTest {
         state.recordFailure(NOW.minus(Duration.ofMinutes(10)), "down");
         assertThat(poller.isDue(source, NOW)).isFalse();
     }
+
+    @Test
+    void aSourceThatReportsItIsUnavailableIsNeverPolled() {
+        JobSource needsToken = source("freelancehunt", Duration.ofHours(1), List.of(aJob("freelancehunt")), null);
+        when(needsToken.unavailableReason()).thenReturn(Optional.of("FREELANCEHUNT_TOKEN is not set"));
+        JobSource healthy = source("dou", Duration.ofHours(1), List.of(aJob("dou")), null);
+        when(states.findById(any())).thenReturn(Optional.empty());
+        when(ingest.ingest(any())).thenReturn(new IngestResult(1, 1, 0, 0, 0));
+
+        new SourcePoller(List.of(needsToken, healthy), ingest, states, clock).pollDueSources();
+
+        verify(needsToken, never()).fetch();
+        verify(healthy).fetch();
+        verify(healthy).afterIngest(); // the post-ingest hook runs after a successful ingest
+        verify(needsToken, never()).afterIngest();
+    }
+
+    @Test
+    void afterIngestIsNotCalledWhenFetchingFails() {
+        JobSource broken = source("dou", Duration.ofHours(1), null, new SourceException("down"));
+        when(states.findById(any())).thenReturn(Optional.empty());
+
+        new SourcePoller(List.of(broken), ingest, states, clock).pollDueSources();
+
+        verify(broken, never()).afterIngest();
+    }
 }

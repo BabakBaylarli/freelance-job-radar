@@ -39,6 +39,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "jobradar.sources.we-work-remotely.enabled=false",
         "jobradar.sources.remote-ok.enabled=false",
         "jobradar.sources.hacker-news.enabled=false",
+        "jobradar.sources.freelancer.enabled=false",
+        "jobradar.sources.himalayas.enabled=false",
+        "jobradar.sources.jobicy.enabled=false",
+        "jobradar.sources.working-nomads.enabled=false",
+        "jobradar.sources.fl-ru.enabled=false",
+        "jobradar.sources.hh.enabled=false",
+        "jobradar.sources.freelancehunt.enabled=false",
+        "jobradar.sources.dou.enabled=false",
         "jobradar.poll-tick-initial-delay=PT1H",
         "jobradar.flush-initial-delay=PT1H"})
 @Testcontainers
