@@ -43,7 +43,7 @@ public class ProposalService {
         }
         Optional<String> profile = profileLoader.load();
         if (profile.isEmpty()) {
-            return new Outcome.Failed("I can't find your profile at %s (or it is empty). Create it from profile.example.md "
+            return new Outcome.Failed("I can't find your profile at %s (or it is empty). Create it from config/profile.example.md "
                     .formatted(profileLoader.path()) + "- proposals are only ever based on facts you put there.");
         }
         try {

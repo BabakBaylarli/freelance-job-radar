@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -67,11 +68,17 @@ public class HttpFetcher {
             if (attempt < maxAttempts) {
                 long delayMs = initialBackoff.toMillis() * (1L << (attempt - 1));
                 log.warn("Fetch attempt {}/{} for {} failed ({}); retrying in {} ms",
-                        attempt, maxAttempts, url, last.getMessage(), delayMs);
+                        attempt, maxAttempts, url, describe(last), delayMs);
                 sleep(delayMs);
             }
         }
-        throw new SourceException("Giving up on %s after %d attempts: %s".formatted(url, maxAttempts, last.getMessage()), last);
+        throw new SourceException("Giving up on %s after %d attempts: %s".formatted(url, maxAttempts, describe(last)), last);
+    }
+
+    /** Root cause as "ClassName: message" - connection errors often have no message of their own. */
+    static String describe(Throwable error) {
+        Throwable cause = NestedExceptionUtils.getMostSpecificCause(error);
+        return cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getClass().getSimpleName() + ": " + cause.getMessage();
     }
 
     private static void sleep(long millis) {

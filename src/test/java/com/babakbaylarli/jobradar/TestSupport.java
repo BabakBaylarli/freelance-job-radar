@@ -56,6 +56,6 @@ public final class TestSupport {
                         new Remotive(true, Duration.ofHours(6), baseUrl, "software-dev"),
                         new RemoteOk(true, Duration.ofHours(6), baseUrl),
                         new HackerNews(true, Duration.ofHours(6), baseUrl, hnRemoteOnly)),
-                "profile.md");
+                "config/profile.md");
     }
 }

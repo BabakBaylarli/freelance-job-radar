@@ -36,7 +36,7 @@ public class StartupChecks {
             log.warn("No include keywords configured (config/keywords.yml): no job can match.");
         }
         if (!profile.exists()) {
-            log.warn("Profile file {} not found: proposals cannot be drafted until you create it (see profile.example.md).",
+            log.warn("Profile file {} not found: proposals cannot be drafted until you create it (copy config/profile.example.md).",
                     profile.path().toAbsolutePath());
         }
     }
