@@ -39,6 +39,28 @@ services:
     ports:
       - "127.0.0.1:8080:8080"   # health endpoint, only reachable from this machine
 
+  # Optional: reach the app privately from your own devices (phone, laptop) over Tailscale - no public port, no router
+  # changes. The bot itself does not need this (Telegram long polling is outbound only). Start with:
+  #   docker compose --profile tailscale up -d
+  # Then open http://<TS_HOSTNAME>:8080/actuator/health from any device signed in to your tailnet.
+  tailscale:
+    profiles: ["tailscale"]
+    image: tailscale/tailscale:stable
+    restart: unless-stopped
+    hostname: ${TS_HOSTNAME:-job-radar}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}                # recommended; if empty, `docker compose logs tailscale` prints a login link instead
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"                       # no /dev/net/tun and no extra Linux capabilities needed
+      TS_SERVE_CONFIG: /config/tailscale-serve.json
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:-}
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./deploy/tailscale-serve.json:/config/tailscale-serve.json:ro
+    depends_on:
+      - app
+
 volumes:
   pgdata:
   tdlight-session:
+  tailscale-state:
