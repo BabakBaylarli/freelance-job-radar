@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,6 +30,7 @@ public class KeywordScorer {
     private final List<Exclude> excludes;
     private final int minScore;
 
+    @Autowired
     public KeywordScorer(JobRadarProperties properties) {
         this(properties.matching());
     }
