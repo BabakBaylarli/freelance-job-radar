@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.babakbaylarli.jobradar.TestSupport;
 import com.babakbaylarli.jobradar.config.JobRadarProperties;
 import com.babakbaylarli.jobradar.config.JobRadarProperties.Keyword;
+import com.babakbaylarli.jobradar.apply.ProposalSender;
 import com.babakbaylarli.jobradar.persistence.Delivery;
 import com.babakbaylarli.jobradar.persistence.JobEntity;
 import com.babakbaylarli.jobradar.persistence.JobRepository.SourceStats;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -161,7 +163,7 @@ class MessageFormatterTest {
                 TestSupport.matching(4, List.of(Keyword.of("kafka", 2), Keyword.of("java", 3), Keyword.of("c++", 1)), List.of("onsite", "us only")),
                 new JobRadarProperties.Notifications(6, 10, Duration.ofHours(6),
                         new com.babakbaylarli.jobradar.config.QuietHoursSettings(true, java.time.LocalTime.MIDNIGHT, java.time.LocalTime.of(8, 0), java.time.ZoneId.of("Asia/Baku"))),
-                base.http(), base.sources(), base.profilePath());
+                base.http(), base.sources(), base.profilePath(), base.apply());
 
         String text = formatter.keywords(props, List.of("Remotive", "RemoteOK"));
 
@@ -243,5 +245,83 @@ class MessageFormatterTest {
         assertThat(text).contains("<b>Remotive</b> — 🟢 on · last success 5h ago").contains("⚠️ last error: HTTP 429 &lt;slow down&gt;")
                 .contains("jobs in last 24h: 12").contains("<b>Freelancehunt</b> — 🟡 skipped: FREELANCEHUNT_TOKEN is not set")
                 .contains("<b>DOU</b> — ⚪ off");
+    }
+
+    // ---- one-tap apply views ---------------------------------------------------------------------------------------
+
+    private static com.babakbaylarli.jobradar.persistence.ApplicationEntity app(String platform, String recipient, java.math.BigDecimal bid) {
+        var app = new com.babakbaylarli.jobradar.persistence.ApplicationEntity(5L, platform, "Hi <team>, I can help with the ledger. Which Kafka version do you run?",
+                bid, bid == null ? null : "USD", bid == null ? null : 7, recipient, NOW);
+        ReflectionTestUtils.setField(app, "id", 41L);
+        return app;
+    }
+
+    private static final ProposalSender ROUTE = new ProposalSender() {
+        public String platform() { return "freelancer"; }
+        public String route() { return "Freelancer.com API"; }
+        public boolean supports(com.babakbaylarli.jobradar.source.Job job) { return true; }
+        public Optional<String> unavailableReason() { return Optional.empty(); }
+        public com.babakbaylarli.jobradar.apply.SendResult send(com.babakbaylarli.jobradar.apply.SendRequest request) { return null; }
+    };
+
+    @Test
+    void draftShowsRouteBidRecipientAndTheApprovalInstruction() {
+        JobEntity job = job(5, "Java <Engineer>", "Acme", "freelancer", 9, List.of(), null, "d");
+
+        String withRoute = formatter.draft(app("freelancer", null, new java.math.BigDecimal("800")), job, Optional.of(ROUTE), Optional.empty());
+        String email = formatter.draft(app("email", "hr@acme.example", null), job, Optional.of(ROUTE), Optional.empty());
+
+        assertThat(withRoute).contains("<b>Draft</b> — Java &lt;Engineer&gt; · Acme").contains("Route: Freelancer.com API — sent <b>only after you approve</b>")
+                .contains("💰 Bid: 800 USD in 7 days").contains("<pre>Hi &lt;team&gt;, I can help").contains("Reply <b>ok</b> to this message, or tap ✅ Send");
+        assertThat(email).contains("📨 To: hr@acme.example").doesNotContain("Bid:");
+    }
+
+    @Test
+    void draftWithoutARouteSaysWhyAndOffersCopyAndOpen() {
+        JobEntity job = job(5, "Java Engineer", "Acme", "remoteok", 9, List.of(), null, "d");
+
+        String text = formatter.draft(app("copy", null, null), job, Optional.empty(), Optional.of("FREELANCER_TOKEN is not set"));
+
+        assertThat(text).contains("No official way to send this automatically").contains("Copy &amp; open").contains("To enable sending here: FREELANCER_TOKEN is not set")
+                .doesNotContain("Reply <b>ok</b>");
+        assertThat(formatter.draftKeyboard(app("copy", null, null), false).rows().get(0)).extracting(Button::callbackData).containsExactly("ak:41", "ae:41");
+        assertThat(formatter.draftKeyboard(app("freelancer", null, null), true).rows().get(0)).extracting(Button::callbackData).containsExactly("as:41", "ae:41");
+        assertThat(formatter.draftKeyboard(app("freelancer", null, null), true).rows().get(1)).extracting(Button::callbackData).containsExactly("ar:41", "ac:41");
+    }
+
+    @Test
+    void aHugeDraftStillFitsIntoOneTelegramMessage() {
+        var big = new com.babakbaylarli.jobradar.persistence.ApplicationEntity(5L, "email", "<&>".repeat(3000), null, null, null, "hr@acme.example", NOW);
+        ReflectionTestUtils.setField(big, "id", 41L);
+        JobEntity job = job(5, "T", "C", "dou", 9, List.of(), null, "d");
+
+        assertThat(formatter.draft(big, job, Optional.of(ROUTE), Optional.empty()).length()).isLessThan(MessageFormatter.TELEGRAM_LIMIT);
+        assertThat(formatter.copyReady(big, job).length()).isLessThan(MessageFormatter.TELEGRAM_LIMIT);
+    }
+
+    @Test
+    void confirmationFailureAndCopyMessages() {
+        var app = app("freelancer", null, new java.math.BigDecimal("800"));
+        JobEntity job = job(5, "Java Engineer", "Acme", "freelancer", 9, List.of(), null, "d");
+
+        assertThat(formatter.confirmation(app, "This uses 1 of your bids.")).contains("⚠️ This uses 1 of your bids.").contains("Send application #41 now?");
+        assertThat(formatter.confirmationKeyboard(app).rows().get(0)).extracting(Button::text).containsExactly("✅ Yes, send", "❌ No");
+        assertThat(formatter.failed(app, "no bids left")).contains("Not sent.").contains("no bids left").contains("Nothing was retried automatically");
+        assertThat(formatter.blocked("Daily limit reached")).contains("Not sent.").contains("Daily limit reached");
+        assertThat(formatter.copyReady(app, job)).contains("Copy &amp; open").contains("<pre>Hi &lt;team&gt;").contains("Suggested bid: 800 USD in 7 days")
+                .contains("<a href=\"https://remotive.com/jobs/5?a=1&amp;b=2\">Open the job and paste it there</a>");
+        assertThat(formatter.sent(app, job, Optional.of(ROUTE))).contains("✅ <b>Sent</b> via Freelancer.com API");
+        assertThat(formatter.editPrompt()).contains("bid 650 5").contains("Nothing is sent until you approve");
+    }
+
+    @Test
+    void limitsView() {
+        var view = new com.babakbaylarli.jobradar.apply.ApplicationService.LimitsView(4, 10, java.util.Map.of("freelancer", 3L, "email", 1L),
+                java.util.Map.of("freelancer", 5, "telegram", 2), Duration.ofMinutes(2), Optional.of(NOW.plusSeconds(90)));
+
+        String text = formatter.limits(view, NOW);
+
+        assertThat(text).contains("Total: <b>4 / 10</b>").contains("freelancer: 3 / 5").contains("email: 1").contains("telegram: 0 / 2").contains("Minimum gap between sends: 2m")
+                .contains("Next send possible in 1m");
     }
 }

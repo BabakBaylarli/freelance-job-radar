@@ -47,7 +47,8 @@ public class JobRadarBot implements SpringLongPollingBot, LongPollingSingleThrea
                     handler.onCallback(query.getMessage().getChatId(), query.getMessage().getMessageId(), query.getId(), query.getData());
                 }
             } else if (update.hasMessage() && update.getMessage().hasText()) {
-                handler.onMessage(update.getMessage().getChatId(), update.getMessage().getText());
+                var reply = update.getMessage().getReplyToMessage();
+                handler.onMessage(update.getMessage().getChatId(), update.getMessage().getText(), reply == null ? null : (long) reply.getMessageId());
             }
         } catch (RuntimeException e) {
             log.error("event=update_failed update_id={}", update.getUpdateId(), e);

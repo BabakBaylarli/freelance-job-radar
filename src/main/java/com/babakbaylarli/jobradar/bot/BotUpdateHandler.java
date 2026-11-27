@@ -1,6 +1,11 @@
 package com.babakbaylarli.jobradar.bot;
 
 import com.babakbaylarli.jobradar.ai.ProposalService;
+import com.babakbaylarli.jobradar.apply.ApplicationService;
+import com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision;
+import com.babakbaylarli.jobradar.apply.ApplyException;
+import com.babakbaylarli.jobradar.persistence.ApplicationEntity;
+import com.babakbaylarli.jobradar.persistence.ApplicationStatus;
 import com.babakbaylarli.jobradar.ai.ProposalService.Outcome;
 import com.babakbaylarli.jobradar.config.JobRadarProperties;
 import com.babakbaylarli.jobradar.persistence.JobEntity;
@@ -15,6 +20,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +51,7 @@ public class BotUpdateHandler {
     private final BotStateService state;
     private final NotificationService notifications;
     private final ProposalService proposals;
+    private final ApplicationService applications;
     private final MessageFormatter formatter;
     private final List<JobSource> sources;
     private final SourceCatalog catalog;
@@ -54,7 +61,7 @@ public class BotUpdateHandler {
 
     public BotUpdateHandler(TelegramGateway gateway, JobRadarProperties properties, JobRepository jobs,
             SourceStateRepository sourceStates, BotStateService state, NotificationService notifications,
-            ProposalService proposals, MessageFormatter formatter, List<JobSource> sources, SourceCatalog catalog, Clock clock) {
+            ProposalService proposals, ApplicationService applications, MessageFormatter formatter, List<JobSource> sources, SourceCatalog catalog, Clock clock) {
         this.gateway = gateway;
         this.properties = properties;
         this.jobs = jobs;
@@ -62,6 +69,7 @@ public class BotUpdateHandler {
         this.state = state;
         this.notifications = notifications;
         this.proposals = proposals;
+        this.applications = applications;
         this.formatter = formatter;
         this.sources = sources;
         this.catalog = catalog;
@@ -71,12 +79,17 @@ public class BotUpdateHandler {
     // ---- entry points -----------------------------------------------------------------------------------------
 
     public void onMessage(long chatId, String text) {
+        onMessage(chatId, text, null);
+    }
+
+    /** @param replyToMessageId the message this one replies to (e.g. the draft the owner answers "ok" to), or null */
+    public void onMessage(long chatId, String text, Long replyToMessageId) {
         if (!authorizeMessage(chatId)) {
             return;
         }
         String trimmed = text == null ? "" : text.strip();
         if (!trimmed.startsWith("/")) {
-            reply(chatId, "I only understand commands. Try /help.");
+            plainText(chatId, trimmed, replyToMessageId);
             return;
         }
         String command = trimmed.split("\\s+", 2)[0].toLowerCase(Locale.ROOT);
@@ -91,6 +104,8 @@ public class BotUpdateHandler {
             case "/saved" -> reply(chatId, formatter.saved(jobs.findByUserStatusOrderByIdDesc(UserStatus.SAVED, PageRequest.of(0, SAVED_LIMIT))));
             case "/stats" -> reply(chatId, stats());
             case "/sources" -> reply(chatId, sources());
+            case "/applied" -> reply(chatId, formatter.applied(applications.recent(20), id -> jobs.findById(id)));
+            case "/limits" -> reply(chatId, formatter.limits(applications.limits(), clock.instant()));
             case "/markets" -> {
                 Set<Market> enabled = state.enabledMarkets();
                 gateway.sendHtml(chatId, formatter.markets(enabled), formatter.marketsKeyboard(enabled));
@@ -122,6 +137,10 @@ public class BotUpdateHandler {
         String[] parts = data == null ? new String[0] : data.split(":", 2);
         if (parts.length == 2 && MessageFormatter.MARKET.equals(parts[0])) {
             toggleMarket(chatId, messageId, callbackId, parts[1]);
+            return;
+        }
+        if (parts.length == 2 && isApplicationAction(parts[0])) {
+            applicationAction(chatId, messageId, callbackId, parts[0], parseId(parts[1]));
             return;
         }
         Long jobId = parts.length == 2 ? parseId(parts[1]) : null;
@@ -190,6 +209,7 @@ public class BotUpdateHandler {
         return formatter.sources(catalog.entries(), states, counts, clock.instant());
     }
 
+    /** "✍️ Draft proposal": drafts and shows the application; nothing is sent. */
     private void draft(long chatId, String callbackId, JobEntity job) {
         if (!proposals.aiEnabled()) {
             gateway.answerCallback(callbackId, "AI is disabled");
@@ -204,11 +224,9 @@ public class BotUpdateHandler {
         gateway.answerCallback(callbackId, "Drafting… ✍️");
         async.execute(() -> {
             try {
-                switch (proposals.draft(job.toJob())) {
-                    case Outcome.Drafted drafted -> reply(chatId, formatter.proposal(job, drafted.text()));
-                    case Outcome.Disabled ignored -> reply(chatId, "🤖 AI proposals are disabled.");
-                    case Outcome.Failed failed -> reply(chatId, "⚠️ Could not draft a proposal: " + MessageFormatter.escape(failed.message()));
-                }
+                showDraft(chatId, applications.startDraft(job));
+            } catch (ApplyException e) {
+                reply(chatId, "⚠️ " + MessageFormatter.escape(e.getMessage()));
             } catch (RuntimeException e) {
                 log.error("event=draft_failed job_id={}", job.getId(), e);
                 reply(chatId, "⚠️ Could not draft a proposal right now. Please try again.");
@@ -216,6 +234,124 @@ public class BotUpdateHandler {
                 drafting.remove(job.getId());
             }
         });
+    }
+
+    // ---- one-tap apply ------------------------------------------------------------------------------------------
+
+    private static final java.util.Set<String> OK_WORDS = java.util.Set.of("ok", "okay", "oke", "okey", "ок", "окей", "оке", "tamam");
+
+    /** "ok", "Ok!", "ОК", "tamam" - the owner's approval word. */
+    static boolean isApproval(String text) {
+        return OK_WORDS.contains(text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}]", ""));
+    }
+
+    private static boolean isApplicationAction(String prefix) {
+        return List.of(MessageFormatter.APP_SEND, MessageFormatter.APP_EDIT, MessageFormatter.APP_REGENERATE, MessageFormatter.APP_CANCEL,
+                MessageFormatter.APP_YES, MessageFormatter.APP_NO, MessageFormatter.APP_COPY).contains(prefix);
+    }
+
+    /** A message that is not a command: an "ok" reply to a draft, or the edit the owner was asked for. */
+    private void plainText(long chatId, String text, Long replyTo) {
+        try {
+            Optional<ApplicationEntity> replied = replyTo == null ? Optional.empty() : applications.findByDraftMessage(replyTo);
+            if (replied.isPresent() && isApproval(text)) {
+                ApplicationEntity app = replied.get();
+                switch (app.getStatus()) {
+                    case DRAFT, FAILED -> showDecision(chatId, applications.requestSend(app.getId()));
+                    case CONFIRMING -> showDecision(chatId, applications.confirmSend(app.getId()));
+                    case EDITING -> reply(chatId, "You are still editing this draft. Send the edited text first, then approve it.");
+                    default -> reply(chatId, "That application is already " + app.getStatus().name().toLowerCase() + ".");
+                }
+                return;
+            }
+            Optional<ApplicationEntity> editing = replied.filter(a -> a.getStatus() == ApplicationStatus.EDITING).or(applications::editing);
+            if (editing.isPresent()) {
+                showDraft(chatId, applications.applyEdit(editing.get().getId(), text));
+                return;
+            }
+            reply(chatId, replied.isPresent() ? "To change this draft tap ✏️ Edit first. To send it, reply <b>ok</b>."
+                    : "I only understand commands. Try /help.");
+        } catch (ApplyException e) {
+            reply(chatId, "⚠️ " + MessageFormatter.escape(e.getMessage()));
+        }
+    }
+
+    private void applicationAction(long chatId, int messageId, String callbackId, String action, Long applicationId) {
+        if (applicationId == null) {
+            gateway.answerCallback(callbackId, "Unknown application");
+            return;
+        }
+        try {
+            switch (action) {
+                case MessageFormatter.APP_SEND -> {
+                    gateway.answerCallback(callbackId, "Checking…");
+                    showDecision(chatId, applications.requestSend(applicationId));
+                }
+                case MessageFormatter.APP_YES -> {
+                    gateway.answerCallback(callbackId, "Sending…");
+                    showDecision(chatId, applications.confirmSend(applicationId));
+                }
+                case MessageFormatter.APP_NO -> {
+                    applications.declineConfirmation(applicationId);
+                    gateway.answerCallback(callbackId, "Not sent");
+                    gateway.editKeyboard(chatId, messageId, Keyboard.empty());
+                    reply(chatId, "👍 Not sent. The draft is still there (tap ✍️ Draft proposal on the job to see it again).");
+                }
+                case MessageFormatter.APP_EDIT -> {
+                    applications.beginEdit(applicationId);
+                    gateway.answerCallback(callbackId, "Edit mode");
+                    reply(chatId, formatter.editPrompt());
+                }
+                case MessageFormatter.APP_REGENERATE -> {
+                    gateway.answerCallback(callbackId, "Regenerating… 🔁");
+                    async.execute(() -> {
+                        try {
+                            showDraft(chatId, applications.regenerate(applicationId));
+                        } catch (ApplyException e) {
+                            reply(chatId, "⚠️ " + MessageFormatter.escape(e.getMessage()));
+                        } catch (RuntimeException e) {
+                            log.error("event=regenerate_failed application_id={}", applicationId, e);
+                            reply(chatId, "⚠️ Could not regenerate right now. Please try again.");
+                        }
+                    });
+                }
+                case MessageFormatter.APP_CANCEL -> {
+                    applications.cancel(applicationId);
+                    gateway.answerCallback(callbackId, "Cancelled");
+                    gateway.editKeyboard(chatId, messageId, Keyboard.empty());
+                }
+                case MessageFormatter.APP_COPY -> {
+                    ApplicationEntity app = applications.copyAndOpen(applicationId);
+                    gateway.answerCallback(callbackId, "Copy ready 📋");
+                    gateway.editKeyboard(chatId, messageId, Keyboard.empty());
+                    reply(chatId, formatter.copyReady(app, applications.jobOf(app)));
+                }
+                default -> gateway.answerCallback(callbackId, "Unknown action");
+            }
+        } catch (ApplyException e) {
+            gateway.answerCallback(callbackId, "Not possible");
+            reply(chatId, "⚠️ " + MessageFormatter.escape(e.getMessage()));
+        }
+    }
+
+    private void showDraft(long chatId, ApplicationEntity app) {
+        JobEntity job = applications.jobOf(app);
+        Optional<com.babakbaylarli.jobradar.apply.ProposalSender> route = applications.routeOf(app);
+        long messageId = gateway.sendHtml(chatId, formatter.draft(app, job, route, applications.missingSetupFor(job)),
+                formatter.draftKeyboard(app, route.isPresent()));
+        applications.attachDraftMessage(app.getId(), messageId);
+    }
+
+    private void showDecision(long chatId, SendDecision decision) {
+        switch (decision) {
+            case SendDecision.NeedsConfirmation needs -> {
+                long messageId = gateway.sendHtml(chatId, formatter.confirmation(needs.application(), needs.note()), formatter.confirmationKeyboard(needs.application()));
+                applications.attachDraftMessage(needs.application().getId(), messageId); // replying "ok" to this message confirms
+            }
+            case SendDecision.Sent sent -> reply(chatId, formatter.sent(sent.application(), applications.jobOf(sent.application()), applications.routeOf(sent.application())));
+            case SendDecision.Failed failed -> gateway.sendHtml(chatId, formatter.failed(failed.application(), failed.reason()), formatter.failedKeyboard(failed.application()));
+            case SendDecision.Blocked blocked -> reply(chatId, formatter.blocked(blocked.reason()));
+        }
     }
 
     private void refreshKeyboard(long chatId, int messageId, JobEntity job, boolean saved) {

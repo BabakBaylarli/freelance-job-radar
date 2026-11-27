@@ -7,7 +7,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /** Test double: records everything the bot would have sent to Telegram. */
 public class RecordingGateway implements TelegramGateway {
 
-    public record Sent(long chatId, String html, Keyboard keyboard) {}
+    public record Sent(long messageId, long chatId, String html, Keyboard keyboard) {}
 
     public record Edit(long chatId, int messageId, Keyboard keyboard) {}
 
@@ -15,6 +15,7 @@ public class RecordingGateway implements TelegramGateway {
     public final List<Edit> edits = new CopyOnWriteArrayList<>();
     public final List<String> answers = new CopyOnWriteArrayList<>();
     public boolean enabled = true;
+    private final java.util.concurrent.atomic.AtomicLong ids = new java.util.concurrent.atomic.AtomicLong(1000);
     public boolean failSends;
 
     @Override
@@ -23,11 +24,13 @@ public class RecordingGateway implements TelegramGateway {
     }
 
     @Override
-    public void sendHtml(long chatId, String html, Keyboard keyboard) {
+    public long sendHtml(long chatId, String html, Keyboard keyboard) {
         if (failSends) {
             throw new TelegramSendException("simulated Telegram outage", null);
         }
-        sent.add(new Sent(chatId, html, keyboard));
+        long id = ids.incrementAndGet();
+        sent.add(new Sent(id, chatId, html, keyboard));
+        return id;
     }
 
     @Override

@@ -2,6 +2,10 @@ package com.babakbaylarli.jobradar.bot;
 
 import com.babakbaylarli.jobradar.config.JobRadarProperties;
 import com.babakbaylarli.jobradar.config.JobRadarProperties.Keyword;
+import com.babakbaylarli.jobradar.apply.ApplicationService;
+import com.babakbaylarli.jobradar.apply.ProposalSender;
+import com.babakbaylarli.jobradar.persistence.ApplicationEntity;
+import com.babakbaylarli.jobradar.persistence.ApplicationStatus;
 import com.babakbaylarli.jobradar.persistence.JobEntity;
 import com.babakbaylarli.jobradar.persistence.JobRepository.MarketStats;
 import com.babakbaylarli.jobradar.persistence.JobRepository.SourceStats;
@@ -15,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -29,6 +34,14 @@ public class MessageFormatter {
     static final String SAVE = "s";
     static final String HIDE = "h";
     static final String MARKET = "m";
+    // application flow (callback data "<action>:<application id>")
+    static final String APP_SEND = "as";
+    static final String APP_EDIT = "ae";
+    static final String APP_REGENERATE = "ar";
+    static final String APP_CANCEL = "ac";
+    static final String APP_YES = "ay";
+    static final String APP_NO = "an";
+    static final String APP_COPY = "ak";
 
     public record DigestMessage(String html, Keyboard keyboard, List<JobEntity> included) {}
 
@@ -85,6 +98,129 @@ public class MessageFormatter {
             escaped = escape(raw);
         }
         return escaped;
+    }
+
+    // ---- one-tap apply -----------------------------------------------------------------------------------------
+
+    public String draft(ApplicationEntity app, JobEntity job, Optional<ProposalSender> route, Optional<String> missingSetup) {
+        StringBuilder sb = new StringBuilder("✍️ <b>Draft</b> — ").append(escape(HtmlText.truncate(job.getTitle(), 110)));
+        if (!job.getCompany().isBlank()) {
+            sb.append(" · ").append(escape(job.getCompany()));
+        }
+        sb.append("\n");
+        if (route.isPresent()) {
+            sb.append("🚀 Route: ").append(escape(route.get().route())).append(" — sent <b>only after you approve</b>\n");
+            if (app.getRecipient() != null) {
+                sb.append("📨 To: ").append(escape(app.getRecipient())).append('\n');
+            }
+        } else {
+            sb.append("📋 No official way to send this automatically — use <b>Copy &amp; open</b> and submit it yourself.\n");
+            missingSetup.ifPresent(reason -> sb.append("ℹ️ To enable sending here: ").append(escape(reason)).append('\n'));
+        }
+        if (app.getBidAmount() != null) {
+            sb.append("💰 Bid: ").append(app.getBidAmount().stripTrailingZeros().toPlainString()).append(' ')
+                    .append(app.getBidCurrency() == null ? "" : escape(app.getBidCurrency())).append(" in ")
+                    .append(app.getBidDays() == null ? "?" : app.getBidDays()).append(" days  (change: reply <code>bid 650 5</code> after ✏️ Edit)\n");
+        }
+        String footer = "\n" + (route.isPresent() ? "Reply <b>ok</b> to this message, or tap ✅ Send, to send it." : "Tap 📋 Copy &amp; open when you are happy with it.")
+                + "\n🔗 " + link(job.getUrl(), "Open the job");
+        int budget = TELEGRAM_LIMIT - sb.length() - footer.length() - "<pre></pre>".length() - 80;
+        return sb.append("<pre>").append(escapedToFit(app.getText(), budget)).append("</pre>").append(footer).toString();
+    }
+
+    public Keyboard draftKeyboard(ApplicationEntity app, boolean canSend) {
+        long id = app.getId();
+        List<Button> first = canSend
+                ? List.of(new Button("✅ Send", APP_SEND + ":" + id), new Button("✏️ Edit", APP_EDIT + ":" + id))
+                : List.of(new Button("📋 Copy & open", APP_COPY + ":" + id), new Button("✏️ Edit", APP_EDIT + ":" + id));
+        return new Keyboard(List.of(first, List.of(new Button("🔁 Regenerate", APP_REGENERATE + ":" + id), new Button("❌ Cancel", APP_CANCEL + ":" + id))));
+    }
+
+    public String editPrompt() {
+        return "✏️ <b>Edit mode.</b> Send me your next message:\n• the full edited text, or\n• an instruction such as <i>shorter, mention Kafka</i> (needs AI), or\n"
+                + "• <code>bid 650 5</code> to change the bid amount and days.\nNothing is sent until you approve the new draft.";
+    }
+
+    public String confirmation(ApplicationEntity app, String note) {
+        return "⚠️ " + escape(note) + "\n<b>Send application #" + app.getId() + " now?</b> Tap ✅ or reply <b>ok</b> to this message.";
+    }
+
+    public Keyboard confirmationKeyboard(ApplicationEntity app) {
+        return new Keyboard(List.of(List.of(new Button("✅ Yes, send", APP_YES + ":" + app.getId()), new Button("❌ No", APP_NO + ":" + app.getId()))));
+    }
+
+    public String sent(ApplicationEntity app, JobEntity job, Optional<ProposalSender> route) {
+        return "✅ <b>Sent</b> via " + escape(route.map(ProposalSender::route).orElse(app.getPlatform()))
+                + (app.getRecipient() == null ? "" : " to " + escape(app.getRecipient()))
+                + (app.getResponseId() == null || app.getResponseId().isBlank() ? "" : "\nReference: <code>" + escape(app.getResponseId()) + "</code>")
+                + "\n" + escape(HtmlText.truncate(job.getTitle(), 110)) + "\n🔗 " + link(job.getUrl(), "Open the job");
+    }
+
+    public String failed(ApplicationEntity app, String reason) {
+        return "❌ <b>Not sent.</b> " + escape(reason) + "\nNothing was retried automatically. You can retry, or copy the text and apply yourself.";
+    }
+
+    public Keyboard failedKeyboard(ApplicationEntity app) {
+        long id = app.getId();
+        return new Keyboard(List.of(List.of(new Button("🔁 Retry", APP_SEND + ":" + id), new Button("📋 Copy & open", APP_COPY + ":" + id)),
+                List.of(new Button("❌ Cancel", APP_CANCEL + ":" + id))));
+    }
+
+    public String blocked(String reason) {
+        return "⏸ <b>Not sent.</b> " + escape(reason);
+    }
+
+    /** The proposal as one copy-friendly message plus the job link (tap the text to copy it). */
+    public String copyReady(ApplicationEntity app, JobEntity job) {
+        String footer = "\n🔗 " + link(job.getUrl(), "Open the job and paste it there");
+        String header = "📋 <b>Copy &amp; open</b> — tap the text to copy it, then apply yourself:\n";
+        int budget = TELEGRAM_LIMIT - header.length() - footer.length() - "<pre></pre>".length() - 80;
+        String bid = app.getBidAmount() == null ? "" : "\n💰 Suggested bid: " + app.getBidAmount().stripTrailingZeros().toPlainString() + " "
+                + (app.getBidCurrency() == null ? "" : escape(app.getBidCurrency())) + (app.getBidDays() == null ? "" : " in " + app.getBidDays() + " days");
+        return header + "<pre>" + escapedToFit(app.getText(), budget - bid.length()) + "</pre>" + bid + footer;
+    }
+
+    public String applied(List<ApplicationEntity> applications, java.util.function.Function<Long, Optional<JobEntity>> jobs) {
+        if (applications.isEmpty()) {
+            return "📨 No applications yet. Tap ✍️ Draft proposal under a job to start one.";
+        }
+        StringBuilder sb = new StringBuilder("📨 <b>Last applications</b>\n");
+        for (ApplicationEntity app : applications) {
+            Optional<JobEntity> job = jobs.apply(app.getJobId());
+            String line = "\n%s <b>%s</b> · %s · %s".formatted(statusIcon(app.getStatus()), escape(job.map(j -> HtmlText.truncate(j.getTitle(), 70)).orElse("(job removed)")),
+                    app.getStatus().name().toLowerCase(), escape(app.getPlatform()));
+            if (sb.length() + line.length() > DIGEST_BUDGET) {
+                break;
+            }
+            sb.append(line);
+            job.ifPresent(j -> sb.append("\n   ").append(link(j.getUrl(), "job")));
+        }
+        return sb.toString();
+    }
+
+    public String limits(ApplicationService.LimitsView view, Instant now) {
+        StringBuilder sb = new StringBuilder("🚦 <b>Today's sending limits</b>\nTotal: <b>%d / %d</b> sent by the bot".formatted(view.sentToday(), view.dailyLimit()));
+        view.sentPerPlatform().forEach((platform, sent) -> sb.append("\n• ").append(escape(platform)).append(": ").append(sent)
+                .append(view.platformLimits().containsKey(platform) ? " / " + view.platformLimits().get(platform) : ""));
+        view.platformLimits().forEach((platform, limit) -> {
+            if (!view.sentPerPlatform().containsKey(platform)) {
+                sb.append("\n• ").append(escape(platform)).append(": 0 / ").append(limit);
+            }
+        });
+        sb.append("\nMinimum gap between sends: ").append(humanize(view.minGap()));
+        view.nextAllowed().ifPresent(next -> sb.append("\n⏳ Next send possible in ").append(humanize(Duration.between(now, next))));
+        sb.append("\n\nCopy &amp; open does not count: only applications the bot itself submitted.");
+        return sb.toString();
+    }
+
+    private static String statusIcon(ApplicationStatus status) {
+        return switch (status) {
+            case SENT -> "✅";
+            case FAILED -> "❌";
+            case COPIED -> "📋";
+            case CANCELLED -> "🚫";
+            default -> "📝";
+        };
     }
 
     // ---- digest -----------------------------------------------------------------------------------------------
@@ -281,6 +417,8 @@ public class MessageFormatter {
                 /saved — jobs you saved
                 /stats — jobs seen / matched per source (7 days)
                 /keywords — current matching config
+                /applied — your last applications and their status
+                /limits — today's sending limits
                 /pause · /resume — stop / start notifications
                 /help — this message
 
