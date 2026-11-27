@@ -31,10 +31,14 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-jobradar}
       LOGGING_STRUCTURED_FORMAT_CONSOLE: logstash   # one JSON object per log line
     volumes:
-      # keywords.yml (matching rules) and profile.md (your profile for proposals) - edit, then `docker compose restart app`
+      # keywords.yml (matching rules), channels.yml (Telegram channels to read) and profile.md (your profile for
+      # proposals) - edit, then `docker compose restart app`
       - ./config:/app/config:ro
+      # Telegram client session for the optional channel source (created once with: docker compose run --rm -it app --telegram-login)
+      - tdlight-session:/data/tdlight
     ports:
       - "127.0.0.1:8080:8080"   # health endpoint, only reachable from this machine
 
 volumes:
   pgdata:
+  tdlight-session:
