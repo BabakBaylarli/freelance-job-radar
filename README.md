@@ -52,7 +52,8 @@ flowchart LR
 - **Single-owner Telegram bot**: only your chat id can use it; everyone else gets a polite "private bot" reply.
 - **Job cards** with market flag, type, company, source, score, matched keywords, short description, budget, link(s) and buttons **✍️ Draft proposal · ⭐ Save · 🙈 Hide**.
 - **AI proposals** (5–8 sentences, mirrors the client's problem, mentions one relevant portfolio project, ends with a question), built only from your `profile.md`.
-- **Commands**: `/start` `/help` `/keywords` `/saved` `/stats` `/sources` `/markets` `/pause` `/resume` `/digest`.
+- **One-tap apply, always human-approved**: draft → edit → approve → (confirm) → send where the platform officially allows it, otherwise a copy-ready text and the job link. Nothing is ever sent without your explicit approval of that specific job. See [One-tap apply](#one-tap-apply).
+- **Commands**: `/start` `/help` `/keywords` `/saved` `/stats` `/sources` `/markets` `/applied` `/limits` `/pause` `/resume` `/digest`.
 - **Quiet hours** (default 00:00–08:00 `Asia/Baku`): matches are queued and sent as **one digest** in the morning. **Hourly limit** (default 6 cards/hour): the overflow goes into the next digest.
 - Structured JSON logs in Docker, Spring Actuator health (`/actuator/health`), graceful shutdown.
 
@@ -207,6 +208,40 @@ Many freelance jobs in these markets are only posted in public Telegram channels
 
 Each new post (text or media caption of at least 30 characters) becomes one job with a link to the post. The channel's `market` sets the default currency for budgets like "3000 грн". Telegram flood limits are respected: channels are read one after another with a pause, and a flood-wait error just makes that poll fail and retry later.
 
+## One-tap apply
+
+The bot drafts the application; **you** decide. There is no auto-apply, no batch sending and nothing on a timer: the only code path that can reach a platform runs when you press ✅ **Send** or reply **ok** to a draft (a test in the repository fails the build if another path is added).
+
+**Flow in Telegram**
+
+1. A matching job arrives with **✍️ Draft proposal · ⭐ Save · 🙈 Hide**.
+2. **Draft** → the AI writes a proposal from your `profile.md` and the job (specific, 5–8 sentences, no invented skills, ends with a question). Platforms that need it also get a **suggested bid** (amount and days, from the client's budget and your minimum rates in `config/apply.yml`). The draft says which route will be used, and to whom it would go (e-mail address or `@username`).
+3. The draft has **✅ Send · ✏️ Edit · 🔁 Regenerate · ❌ Cancel**. **Replying `ok` to the draft message** (also `ок`, `tamam`, `okay`) is the same as ✅ Send.
+4. **✏️ Edit** → send your next message: the full edited text, or an instruction such as *shorter, mention Kafka* (when AI is on and the message is short), or `bid 650 5` to change the bid amount and days. The bot shows the updated draft and asks again; nothing is sent while editing.
+5. **Send** → for limited actions a one-line confirmation first, e.g. *"This uses 1 of your Freelancer.com bids. Send? ✅ / ❌"* (replying `ok` to it also confirms). After sending you get the result and a link; the application is stored.
+6. Where there is no official way to submit, **Send** is replaced by **📋 Copy & open**: the proposal arrives as one copy-friendly message with the job link, and you submit it yourself in seconds.
+7. If a send fails, you see the error with **🔁 Retry** and **📋 Copy & open**. Nothing is retried automatically (a retry after a timeout could submit twice).
+
+**Safety rails**
+
+- A **daily limit** (default 10 sent applications in total, optionally lower per platform in `config/apply.yml`) and a **minimum gap** between sends (default 2 min). `/limits` shows today's usage.
+- **Never the same job twice**: enforced by the service and by a unique index in the database.
+- Every application is stored (job, route, text, bid, status `SENT` / `FAILED` / `COPIED`, timestamps, the platform's response id). `/applied` lists the last 20.
+- Secrets only come from the environment; tokens, passwords and e-mail bodies are never logged.
+
+**What the bot can send, and what it cannot**
+
+| Platform | Can the bot send? | How | What you need |
+| --- | --- | --- | --- |
+| Freelancer.com | **Yes** | Official Projects API: bidder id from `GET /api/users/0.1/self/`, then `POST /api/projects/0.1/bids/` (`project_id`, `bidder_id`, `description`, `amount`, `period`), as in Freelancer's own SDK. Asks for a final confirmation because a bid uses one of your limited monthly bids. | `FREELANCER_TOKEN` with permission to place bids. The remaining-bids count is not shown: the SDK exposes no such call. |
+| Jobs that name a contact **e-mail** (DOU, Telegram, Hacker News posts...) | **Yes** | Your own Gmail over SMTP (the same App Password as the alert e-mails): subject, proposal, portfolio links, optional `config/cv.pdf` attached. | `MAIL_USERNAME`, `MAIL_APP_PASSWORD`; the posting must contain an address. |
+| Telegram channel posts that name a contact **@username** | **Yes** | One direct message from your own account through the official client API. Never to bots, never a follow-up, flood-wait answers are shown, not retried. | The Telegram client setup (API id/hash, `--telegram-login`). |
+| hh.ru | No → Copy & open | The current official hh.ru API specification (`api.hh.ru/openapi`) has no endpoint for an applicant to respond to a vacancy (only employer-side negotiation actions), so nothing is automated. | – |
+| Freelancehunt | No → Copy & open | The API links a bids collection per project, but its documentation could not be reached to confirm the request format, so nothing is guessed. | – |
+| Upwork, Fiverr, Kwork, Djinni, LinkedIn, FL.ru, Guru, PeoplePerHour | No → Copy & open | No submission API for applicants, or their terms do not allow automation. | – |
+
+Settings: [`config/apply.yml`](config/apply.yml) (minimum rates, per-platform limits, portfolio links) and `APPLY_DAILY_LIMIT` in `.env`. For Freelancer bids, `jobradar.apply.freelancer-milestone-percentage` can request an upfront milestone share; it is not sent unless you set it.
+
 ## Keywords, aliases, markets and budgets
 
 [`config/keywords.yml`](config/keywords.yml) is mounted into the container (restart the app after editing):
@@ -321,6 +356,7 @@ src/main/java/com/babakbaylarli/jobradar/
 │   └── telegram/ channel source on TDLight, one-time login command
 ├── matching/     KeywordScorer, UrlNormalizer, DedupKey, JobIngestService (dedupe + score + store)
 ├── persistence/  JPA entities and repositories, Flyway migrations in resources/db/migration
+├── apply/        ApplicationService (approval state machine, limits), senders (Freelancer API, SMTP, Telegram DM), BidAdvisor
 ├── bot/          Telegram entry point, command/callback handler, NotificationService, message formatting
 └── ai/           prompt builder, Anthropic client wrapper, ProposalService, AiJobExtractor
 ```
@@ -338,9 +374,12 @@ src/main/java/com/babakbaylarli/jobradar/
 | Retry/backoff, `429` handling, `User-Agent`, tokens in headers | WireMock |
 | Flyway migrations, unique constraints, queries | Testcontainers PostgreSQL |
 | Notification policy (pause, quiet hours, hourly limit, digest, markets) | Testcontainers PostgreSQL + a recording Telegram gateway |
+| One-tap apply: state machine (draft → edit → confirm → send), `ok` reply handling, limits, duplicate protection, retry/copy fallbacks | JUnit + Testcontainers PostgreSQL with fake senders; bot handler with a mocked service |
+| Senders: Freelancer bid (payload, no retry, errors), e-mail (real SMTP protocol, attachment), Telegram DM (contact rules) | WireMock, GreenMail, fake messenger |
+| "Nothing sends automatically" | tripwire tests that scan the sources for any other path to a sender |
 | Whole app boots with no keys at all, with every default source on, health is `UP`; feed → scoring → Postgres | `@SpringBootTest` + Testcontainers + WireMock |
 
-What the tests do **not** cover, honestly: the sample payloads and e-mails are written to follow each source's real format (every JSON/RSS adapter except hh.ru was additionally run once against the live feed on 2026-11-27 and parsed it), but the e-mail parsers have only seen synthetic e-mails, hh.ru needs your registered contact address to answer at all, and the TDLight channel reader needs a real Telegram login, so it is tested through its interface and its pure helpers only.
+What the tests do **not** cover, honestly: sending to the real platforms (the Freelancer.com bid, SMTP to a real mailbox, a real Telegram message) was only exercised against recorded protocol behaviour and test servers, never with a real account. the sample payloads and e-mails are written to follow each source's real format (every JSON/RSS adapter except hh.ru was additionally run once against the live feed on 2026-11-27 and parsed it), but the e-mail parsers have only seen synthetic e-mails, hh.ru needs your registered contact address to answer at all, and the TDLight channel reader needs a real Telegram login, so it is tested through its interface and its pure helpers only.
 
 CI (GitHub Actions) runs `mvn clean verify` and builds the Docker image on every push and pull request.
 
@@ -361,5 +400,8 @@ Proposals use the official `com.anthropic:anthropic-java` SDK. The model is conf
 | Email source: IMAP error | Use an **App Password**, enable IMAP in Gmail, check `MAIL_USERNAME`. |
 | Telegram channels: "session is not logged in" | Run `docker compose run --rm -it app --telegram-login` once. |
 | *Draft proposal* says AI is disabled | Set `ANTHROPIC_API_KEY`, then `docker compose up -d`. |
+| Replying `ok` does nothing | It must be a Telegram **reply** to the draft (or confirmation) message, from the owner's chat. |
+| "Daily limit reached" / "wait ... s" | See `/limits`; change `APPLY_DAILY_LIMIT`, `min-gap` or `platform-limits`, or use Copy & open. |
+| Freelancer bid refused | The error text is Freelancer's own (no bids left, invalid token, project closed...). Use Retry after fixing it, or Copy & open. |
 | *Draft proposal* says it cannot find your profile | Create `config/profile.md` from `config/profile.example.md`. |
 | No jobs arrive | `/stats` shows per-source and per-market results; lower `min-score`, add keywords or aliases; check quiet hours, `/pause` and `/markets`. |

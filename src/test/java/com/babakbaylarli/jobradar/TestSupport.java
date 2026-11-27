@@ -53,7 +53,13 @@ public final class TestSupport {
         JobRadarProperties.Sources s = base.sources();
         return new JobRadarProperties(base.telegram(), base.ai(), base.matching(), base.notifications(), base.http(),
                 new Sources(s.weWorkRemotely(), s.remotive(), s.remoteOk(), s.hackerNews(), s.freelancer(), s.himalayas(), s.jobicy(), s.workingNomads(),
-                        s.flRu(), s.hh(), s.freelancehunt(), s.dou(), email, s.telegramChannels()), base.profilePath());
+                        s.flRu(), s.hh(), s.freelancehunt(), s.dou(), email, s.telegramChannels()), base.profilePath(), base.apply());
+    }
+
+    /** Copy of {@code base} with different "one-tap apply" settings. */
+    public static JobRadarProperties withApply(JobRadarProperties base, JobRadarProperties.Apply apply) {
+        return new JobRadarProperties(base.telegram(), base.ai(), base.matching(), base.notifications(), base.http(), base.sources(),
+                base.profilePath(), apply);
     }
 
     /** Parse a saved sample e-mail from {@code src/test/resources/emails}. */
@@ -95,6 +101,9 @@ public final class TestSupport {
                         new JobRadarProperties.Dou(true, Duration.ofHours(6), baseUrl, List.of("Java"), true),
                         new JobRadarProperties.EmailAlerts(false, Duration.ofMinutes(15), "localhost", 993, true, null, null, "JobAlerts", 30),
                         new JobRadarProperties.TelegramChannels(false, Duration.ofMinutes(30), null, null, null, "/tmp/tdlight", List.of(), 50)),
-                "config/profile.md");
+                "config/profile.md",
+                new JobRadarProperties.Apply(10, java.util.Map.of(), Duration.ofMinutes(2), java.util.Map.of("USD", new java.math.BigDecimal("20")),
+                        java.util.Map.of("USD", new java.math.BigDecimal("100")), 7, List.of("https://github.com/example/portfolio"), "config/cv.pdf",
+                        java.time.ZoneId.of("Asia/Baku"), new JobRadarProperties.Smtp("localhost", 25, false, false), null));
     }
 }

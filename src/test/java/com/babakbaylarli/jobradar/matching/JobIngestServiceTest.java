@@ -43,7 +43,7 @@ class JobIngestServiceTest {
         JobRadarProperties base = TestSupport.props("http://unused");
         JobRadarProperties props = new JobRadarProperties(base.telegram(), base.ai(),
                 TestSupport.matching(4, List.of(Keyword.of("java", 3), Keyword.of("kafka", 2)), List.of("onsite")),
-                base.notifications(), base.http(), base.sources(), base.profilePath());
+                base.notifications(), base.http(), base.sources(), base.profilePath(), base.apply());
         service = new JobIngestService(repository, new KeywordScorer(props), props, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

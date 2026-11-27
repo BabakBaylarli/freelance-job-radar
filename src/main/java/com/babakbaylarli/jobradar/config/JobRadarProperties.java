@@ -19,7 +19,37 @@ public record JobRadarProperties(
         @DefaultValue Notifications notifications,
         @DefaultValue Http http,
         @DefaultValue Sources sources,
-        @DefaultValue("config/profile.md") String profilePath) {
+        @DefaultValue("config/profile.md") String profilePath,
+        @DefaultValue Apply apply) {
+
+    /** Settings of the human-approved "one-tap apply" flow. Nothing here ever sends anything on its own. */
+    public record Apply(
+            /** Maximum applications sent by the bot per day, all platforms together. */
+            @DefaultValue("10") int dailyLimit,
+            /** Optional lower daily limits per platform id (freelancer, email, telegram). */
+            @DefaultValue Map<String, Integer> platformLimits,
+            /** Minimum time between two sends. */
+            @DefaultValue("2m") Duration minGap,
+            /** Lowest hourly rate you accept, per currency (used to suggest bids on hourly projects). */
+            @DefaultValue Map<String, BigDecimal> minHourlyRate,
+            /** Lowest fixed bid you accept, per currency. */
+            @DefaultValue Map<String, BigDecimal> minFixedBid,
+            @DefaultValue("7") int defaultDays,
+            /** Links appended to applications sent by e-mail. */
+            @DefaultValue List<String> portfolioLinks,
+            /** Optional CV attached to applications sent by e-mail (ignored when the file does not exist). */
+            @DefaultValue("config/cv.pdf") String cvPath,
+            /** Time zone that defines "today" for the daily limits. */
+            @DefaultValue("Asia/Baku") ZoneId zone,
+            @DefaultValue Smtp smtp,
+            /** Freelancer.com: share of the bid to request as an upfront milestone; omitted when null. */
+            Integer freelancerMilestonePercentage) {}
+
+    public record Smtp(
+            @DefaultValue("smtp.gmail.com") String host,
+            @DefaultValue("587") int port,
+            @DefaultValue("true") boolean starttls,
+            @DefaultValue("false") boolean ssl) {}
 
     public record Telegram(String botToken, Long ownerChatId) {
         public boolean botConfigured() {

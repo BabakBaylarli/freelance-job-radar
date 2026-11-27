@@ -58,7 +58,7 @@ class TelegramChannelSourceTest {
         JobRadarProperties.Sources s = base.sources();
         return new JobRadarProperties(base.telegram(), base.ai(), base.matching(), base.notifications(), base.http(),
                 new JobRadarProperties.Sources(s.weWorkRemotely(), s.remotive(), s.remoteOk(), s.hackerNews(), s.freelancer(), s.himalayas(), s.jobicy(),
-                        s.workingNomads(), s.flRu(), s.hh(), s.freelancehunt(), s.dou(), s.emailAlerts(), config), base.profilePath());
+                        s.workingNomads(), s.flRu(), s.hh(), s.freelancehunt(), s.dou(), s.emailAlerts(), config), base.profilePath(), base.apply());
     }
 
     private static ChannelPost post(String channel, long id, String text) {

@@ -18,8 +18,9 @@ public class NoopTelegramGateway implements TelegramGateway {
     }
 
     @Override
-    public void sendHtml(long chatId, String html, Keyboard keyboard) {
+    public long sendHtml(long chatId, String html, Keyboard keyboard) {
         log.debug("Telegram disabled - dropping message");
+        return 0;
     }
 
     @Override

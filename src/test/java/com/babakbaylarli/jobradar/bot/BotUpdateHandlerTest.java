@@ -39,6 +39,7 @@ class BotUpdateHandlerTest {
     private final BotStateService state = mock(BotStateService.class);
     private final NotificationService notifications = mock(NotificationService.class);
     private final ProposalService proposals = mock(ProposalService.class);
+    private final com.babakbaylarli.jobradar.apply.ApplicationService applications = mock(com.babakbaylarli.jobradar.apply.ApplicationService.class);
     private final JobSource remotive = mock(JobSource.class);
 
     private BotUpdateHandler handler;
@@ -53,8 +54,8 @@ class BotUpdateHandlerTest {
     private BotUpdateHandler handlerFor(Long owner) {
         JobRadarProperties base = TestSupport.props("http://unused");
         JobRadarProperties props = new JobRadarProperties(new JobRadarProperties.Telegram("token", owner), base.ai(), base.matching(),
-                base.notifications(), base.http(), base.sources(), base.profilePath());
-        return new BotUpdateHandler(gateway, props, jobs, sourceStates, state, notifications, proposals, new MessageFormatter(),
+                base.notifications(), base.http(), base.sources(), base.profilePath(), base.apply());
+        return new BotUpdateHandler(gateway, props, jobs, sourceStates, state, notifications, proposals, applications, new MessageFormatter(),
                 List.of(remotive), new com.babakbaylarli.jobradar.source.SourceCatalog(List.of(remotive)), Clock.fixed(Instant.parse("2026-11-27T10:00:00Z"), ZoneOffset.UTC));
     }
 
@@ -229,36 +230,48 @@ class BotUpdateHandlerTest {
         verify(proposals, never()).draft(any());
     }
 
+    private com.babakbaylarli.jobradar.persistence.ApplicationEntity draftOf(JobEntity job, String text) {
+        var app = new com.babakbaylarli.jobradar.persistence.ApplicationEntity(job.getId(), "copy", text, null, null, null, null, Instant.parse("2026-11-27T10:00:00Z"));
+        org.springframework.test.util.ReflectionTestUtils.setField(app, "id", 41L);
+        when(applications.jobOf(app)).thenReturn(job);
+        when(applications.routeOf(app)).thenReturn(Optional.empty());
+        when(applications.missingSetupFor(job)).thenReturn(Optional.empty());
+        return app;
+    }
+
     @Test
-    void draftSendsTheProposalAsACopyFriendlyMessage() {
-        storedJob(5, Delivery.SENT_LIVE);
+    void draftShowsTheApplicationWithButtonsAndRemembersTheMessageIdForOkReplies() {
+        JobEntity job = storedJob(5, Delivery.SENT_LIVE);
         when(proposals.aiEnabled()).thenReturn(true);
-        when(proposals.draft(any(Job.class))).thenReturn(new Outcome.Drafted("Hi Acme, your payments ledger rebuild sounds great. Which Kafka version do you run?"));
+        var app = draftOf(job, "Hi Acme, your payments ledger rebuild sounds great. Which Kafka version do you run?");
+        when(applications.startDraft(job)).thenReturn(app);
 
         handler.onCallback(OWNER, 1, "cb", "d:5");
 
         assertThat(gateway.answers).containsExactly("Drafting… ✍️");
-        await().untilAsserted(() -> assertThat(gateway.texts()).singleElement().satisfies(t ->
-                assertThat(t).contains("<pre>Hi Acme, your payments ledger rebuild sounds great.").contains("Proposal draft")));
+        await().untilAsserted(() -> assertThat(gateway.sent).singleElement().satisfies(sent -> {
+            assertThat(sent.html()).contains("<pre>Hi Acme, your payments ledger rebuild").contains("No official way to send");
+            assertThat(sent.keyboard().rows().get(0)).extracting(Button::callbackData).containsExactly("ak:41", "ae:41"); // Copy & open, Edit
+            verify(applications).attachDraftMessage(41L, sent.messageId());
+        }));
     }
 
     @Test
-    void draftFailuresAreReportedNotThrown() {
+    void draftProblemsAreShownToTheOwnerNotThrown() {
         storedJob(5, Delivery.SENT_LIVE);
         when(proposals.aiEnabled()).thenReturn(true);
-        when(proposals.draft(any(Job.class))).thenReturn(new Outcome.Failed("The AI request failed: overloaded"));
+        when(applications.startDraft(any())).thenThrow(new com.babakbaylarli.jobradar.apply.ApplyException("You already sent an application for this job."));
 
         handler.onCallback(OWNER, 1, "cb", "d:5");
 
-        await().untilAsserted(() -> assertThat(gateway.texts()).singleElement().satisfies(t ->
-                assertThat(t).contains("Could not draft a proposal").contains("overloaded")));
+        await().untilAsserted(() -> assertThat(gateway.texts()).singleElement().satisfies(t -> assertThat(t).contains("already sent")));
     }
 
     @Test
     void unexpectedDraftErrorsAreContained() {
         storedJob(5, Delivery.SENT_LIVE);
         when(proposals.aiEnabled()).thenReturn(true);
-        when(proposals.draft(any(Job.class))).thenThrow(new IllegalStateException("boom"));
+        when(applications.startDraft(any())).thenThrow(new IllegalStateException("boom"));
 
         handler.onCallback(OWNER, 1, "cb", "d:5");
 
@@ -323,5 +336,192 @@ class BotUpdateHandlerTest {
         assertThat(gateway.texts()).singleElement().satisfies(text -> assertThat(text)
                 .contains("<b>Remotive</b> — 🟢 on · not polled yet").contains("jobs in last 24h: 7")
                 .contains("<b>hh.ru</b> — ⚪ off").contains("<b>Telegram channels</b> — ⚪ off"));
+    }
+
+    // ---- one-tap apply: approval by reply, buttons, edit mode ----------------------------------------------------
+
+    private com.babakbaylarli.jobradar.persistence.ApplicationEntity application(com.babakbaylarli.jobradar.persistence.ApplicationStatus status, String platform) {
+        JobEntity job = MessageFormatterTest.job(5, "Java Engineer", "Acme", "freelancer", 9, List.of("java"), null, "desc");
+        var app = new com.babakbaylarli.jobradar.persistence.ApplicationEntity(5L, platform, "Hi, I can help. Which version do you run?", new java.math.BigDecimal("800"), "USD", 7,
+                null, Instant.parse("2026-11-27T10:00:00Z"));
+        org.springframework.test.util.ReflectionTestUtils.setField(app, "id", 41L);
+        org.springframework.test.util.ReflectionTestUtils.setField(app, "status", status);
+        when(applications.jobOf(app)).thenReturn(job);
+        when(applications.routeOf(app)).thenReturn(Optional.empty());
+        when(applications.missingSetupFor(job)).thenReturn(Optional.empty());
+        return app;
+    }
+
+    @Test
+    void replyingOkToTheDraftApprovesThatApplication() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.DRAFT, "freelancer");
+        when(applications.findByDraftMessage(900L)).thenReturn(Optional.of(app));
+        when(applications.requestSend(41L)).thenReturn(new com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision.Sent(app));
+
+        handler.onMessage(OWNER, "ok", 900L);
+
+        verify(applications).requestSend(41L);
+        assertThat(gateway.texts()).singleElement().satisfies(t -> assertThat(t).contains("Sent"));
+    }
+
+    @Test
+    void okInAnyLanguageSpellingCounts() {
+        for (String word : List.of("ok", "OK", "Ok!", "ок", "ОК", "окей", "tamam", "Tamam.", " okay ")) {
+            assertThat(BotUpdateHandler.isApproval(word)).as(word).isTrue();
+        }
+        for (String word : List.of("okx", "yes", "no", "send", "okay send it", "")) {
+            assertThat(BotUpdateHandler.isApproval(word)).as(word).isFalse();
+        }
+    }
+
+    @Test
+    void okThatIsNotAReplyToADraftSendsNothing() {
+        handler.onMessage(OWNER, "ok");
+        handler.onMessage(OWNER, "ok", 123L); // a reply to some unrelated message
+
+        verify(applications, never()).requestSend(org.mockito.ArgumentMatchers.anyLong());
+        verify(applications, never()).confirmSend(org.mockito.ArgumentMatchers.anyLong());
+        assertThat(gateway.texts()).hasSize(2).allSatisfy(t -> assertThat(t).contains("only understand commands"));
+    }
+
+    @Test
+    void okWhileStillEditingDoesNotSend() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.EDITING, "freelancer");
+        when(applications.findByDraftMessage(900L)).thenReturn(Optional.of(app));
+
+        handler.onMessage(OWNER, "ok", 900L);
+
+        verify(applications, never()).requestSend(org.mockito.ArgumentMatchers.anyLong());
+        assertThat(gateway.texts()).singleElement().satisfies(t -> assertThat(t).contains("still editing"));
+    }
+
+    @Test
+    void anApprovedLimitedActionAsksForTheFinalConfirmationAndOkOnThatMessageConfirmsIt() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.CONFIRMING, "freelancer");
+        when(applications.findByDraftMessage(900L)).thenReturn(Optional.of(app));
+        when(applications.requestSend(41L)).thenReturn(new com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision.NeedsConfirmation(app, "This uses 1 of your Freelancer.com bids."));
+        when(applications.confirmSend(41L)).thenReturn(new com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision.Sent(app));
+
+        handler.onCallback(OWNER, 1, "cb", "as:41");
+
+        assertThat(gateway.sent).singleElement().satisfies(sent -> {
+            assertThat(sent.html()).contains("This uses 1 of your Freelancer.com bids.").contains("Send application #41 now?");
+            assertThat(sent.keyboard().rows().get(0)).extracting(Button::callbackData).containsExactly("ay:41", "an:41");
+            verify(applications).attachDraftMessage(41L, sent.messageId());
+        });
+
+        handler.onMessage(OWNER, "ок", 900L); // reply "ok" to the confirmation message
+
+        verify(applications).confirmSend(41L);
+    }
+
+    @Test
+    void theYesAndNoButtonsOfTheConfirmation() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.DRAFT, "freelancer");
+        when(applications.confirmSend(41L)).thenReturn(new com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision.Sent(app));
+
+        handler.onCallback(OWNER, 7, "cb1", "ay:41");
+        handler.onCallback(OWNER, 8, "cb2", "an:41");
+
+        verify(applications).confirmSend(41L);
+        verify(applications).declineConfirmation(41L);
+        assertThat(gateway.answers).containsExactly("Sending…", "Not sent");
+        assertThat(gateway.texts()).anySatisfy(t -> assertThat(t).contains("Not sent"));
+    }
+
+    @Test
+    void failedAndBlockedSendsAreShownWithRetryAndCopyOptions() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.FAILED, "freelancer");
+        when(applications.requestSend(41L)).thenReturn(
+                new com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision.Failed(app, "Freelancer.com refused the bid: no bids left"),
+                new com.babakbaylarli.jobradar.apply.ApplicationService.SendDecision.Blocked(app, "Daily limit reached: 10 of 10"));
+
+        handler.onCallback(OWNER, 1, "cb", "as:41");
+        handler.onCallback(OWNER, 1, "cb", "as:41");
+
+        assertThat(gateway.sent).hasSize(2);
+        assertThat(gateway.sent.get(0).html()).contains("Not sent").contains("no bids left").contains("Nothing was retried automatically");
+        assertThat(gateway.sent.get(0).keyboard().rows().get(0)).extracting(Button::text).containsExactly("🔁 Retry", "📋 Copy & open");
+        assertThat(gateway.sent.get(1).html()).contains("Daily limit reached");
+    }
+
+    @Test
+    void editButtonStartsEditModeAndTheNextPlainMessageIsTheEdit() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.EDITING, "freelancer");
+        when(applications.editing()).thenReturn(Optional.of(app));
+        var edited = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.DRAFT, "freelancer");
+        when(applications.applyEdit(41L, "shorter, mention Kafka")).thenReturn(edited);
+
+        handler.onCallback(OWNER, 1, "cb", "ae:41");
+        handler.onMessage(OWNER, "shorter, mention Kafka");
+
+        verify(applications).beginEdit(41L);
+        assertThat(gateway.texts().get(0)).contains("Edit mode").contains("bid 650 5");
+        assertThat(gateway.texts().get(1)).contains("Draft").contains("Which version do you run?"); // the updated draft is shown again
+        verify(applications, never()).requestSend(org.mockito.ArgumentMatchers.anyLong());               // editing never sends
+    }
+
+    @Test
+    void anEditThatIsRejectedExplainsWhy() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.EDITING, "freelancer");
+        when(applications.editing()).thenReturn(Optional.of(app));
+        when(applications.applyEdit(41L, "ok then")).thenThrow(new com.babakbaylarli.jobradar.apply.ApplyException("That is too short to be a proposal."));
+
+        handler.onMessage(OWNER, "ok then");
+
+        assertThat(gateway.texts()).singleElement().satisfies(t -> assertThat(t).contains("too short"));
+    }
+
+    @Test
+    void cancelCopyAndRegenerateButtons() {
+        var app = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.COPIED, "copy");
+        var regenerated = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.DRAFT, "copy");
+        when(applications.copyAndOpen(41L)).thenReturn(app);
+        when(applications.regenerate(41L)).thenReturn(regenerated);
+
+        handler.onCallback(OWNER, 3, "c1", "ac:41");
+        handler.onCallback(OWNER, 4, "c2", "ak:41");
+        handler.onCallback(OWNER, 5, "c3", "ar:41");
+
+        verify(applications).cancel(41L);
+        assertThat(gateway.edits).extracting(RecordingGateway.Edit::messageId).contains(3, 4);
+        assertThat(gateway.texts()).anySatisfy(t -> assertThat(t).contains("Copy &amp; open").contains("<pre>Hi, I can help."));
+        await().untilAsserted(() -> verify(applications).regenerate(41L));
+    }
+
+    @Test
+    void applicationErrorsReachTheOwnerAndStrangersCannotUseTheButtons() {
+        when(applications.requestSend(41L)).thenThrow(new com.babakbaylarli.jobradar.apply.ApplyException("This application is already sent, so that action is not available."));
+
+        handler.onCallback(OWNER, 1, "cb", "as:41");
+        handler.onCallback(STRANGER, 1, "cb2", "as:41");
+
+        assertThat(gateway.texts()).singleElement().satisfies(t -> assertThat(t).contains("already sent"));
+        assertThat(gateway.answers).containsExactly("Checking…", "Not possible", "Private bot");
+        verify(applications).requestSend(41L); // only the owner's press reached the service
+    }
+
+    @Test
+    void appliedAndLimitsCommands() {
+        var sentApp = application(com.babakbaylarli.jobradar.persistence.ApplicationStatus.SENT, "freelancer");
+        when(applications.recent(20)).thenReturn(List.of(sentApp));
+        when(jobs.findById(5L)).thenReturn(Optional.of(MessageFormatterTest.job(5, "Java Engineer", "Acme", "freelancer", 9, List.of(), null, "d")));
+        when(applications.limits()).thenReturn(new com.babakbaylarli.jobradar.apply.ApplicationService.LimitsView(2, 10, java.util.Map.of("freelancer", 2L),
+                java.util.Map.of("freelancer", 5), java.time.Duration.ofMinutes(2), Optional.empty()));
+
+        handler.onMessage(OWNER, "/applied");
+        handler.onMessage(OWNER, "/limits");
+
+        assertThat(gateway.texts().get(0)).contains("Last applications").contains("<b>Java Engineer</b> · sent · freelancer");
+        assertThat(gateway.texts().get(1)).contains("Total: <b>2 / 10</b>").contains("freelancer: 2 / 5").contains("Copy &amp; open does not count");
+    }
+
+    @Test
+    void strangersCannotApproveAnythingEvenByReplyingOk() {
+        handler.onMessage(STRANGER, "ok", 900L);
+
+        verify(applications, never()).findByDraftMessage(org.mockito.ArgumentMatchers.anyLong());
+        verify(applications, never()).requestSend(org.mockito.ArgumentMatchers.anyLong());
+        assertThat(gateway.texts()).containsExactly(BotUpdateHandler.PRIVATE_BOT);
     }
 }

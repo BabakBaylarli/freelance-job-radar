@@ -40,7 +40,7 @@ public class TelegramClientGateway implements TelegramGateway {
     }
 
     @Override
-    public void sendHtml(long chatId, String html, Keyboard keyboard) {
+    public long sendHtml(long chatId, String html, Keyboard keyboard) {
         SendMessage.SendMessageBuilder<?, ?> message = SendMessage.builder()
                 .chatId(chatId)
                 .text(html)
@@ -50,7 +50,7 @@ public class TelegramClientGateway implements TelegramGateway {
             message.replyMarkup(toMarkup(keyboard));
         }
         try {
-            client.execute(message.build());
+            return client.execute(message.build()).getMessageId();
         } catch (TelegramApiException e) {
             throw new TelegramSendException("Telegram sendMessage failed: " + e.getMessage(), e);
         }

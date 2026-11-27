@@ -102,6 +102,19 @@ class ApplicationStartupTest {
     }
 
     @Test
+    void applySettingsAreBoundFromApplicationYmlAndConfigApplyYml() {
+        var apply = properties.apply();
+
+        assertThat(apply.dailyLimit()).isEqualTo(10);
+        assertThat(apply.minGap()).isEqualTo(java.time.Duration.ofMinutes(2));
+        assertThat(apply.minHourlyRate()).containsEntry("USD", new java.math.BigDecimal("20")); // from config/apply.yml
+        assertThat(apply.minFixedBid()).containsKey("EUR");
+        assertThat(apply.smtp().host()).isEqualTo("smtp.gmail.com");
+        assertThat(apply.freelancerMilestonePercentage()).isNull();
+        assertThat(apply.zone().getId()).isEqualTo("Asia/Baku");
+    }
+
+    @Test
     void jobsFlowFromTheFeedThroughScoringIntoPostgresWithoutDuplicates() {
         remotiveApi.stubFor(get(urlPathEqualTo("/api/remote-jobs"))
                 .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody(TestSupport.sample("remotive.json"))));

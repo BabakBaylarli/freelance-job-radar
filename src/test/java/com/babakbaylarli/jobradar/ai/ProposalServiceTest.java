@@ -33,7 +33,7 @@ class ProposalServiceTest {
         }
         JobRadarProperties base = TestSupport.props("http://unused");
         return new ProfileLoader(new JobRadarProperties(base.telegram(), base.ai(), base.matching(), base.notifications(),
-                base.http(), base.sources(), file.toString()));
+                base.http(), base.sources(), file.toString(), base.apply()));
     }
 
     @Test

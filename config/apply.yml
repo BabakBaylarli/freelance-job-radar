@@ -1,0 +1,19 @@
+# One-tap apply settings that are personal to you. Mounted into the container (restart the app after editing).
+# The bot only ever SENDS after you approve that specific application (Send button or replying "ok" to the draft).
+jobradar:
+  apply:
+    # Lowest rates you accept, used to suggest bids (a bid is never suggested below these).
+    min-hourly-rate:
+      USD: 20
+      EUR: 20
+    min-fixed-bid:
+      USD: 100
+      EUR: 100
+    # Lower daily limits for single platforms (the total is apply.daily-limit). Platform ids: freelancer, email, telegram.
+    platform-limits: {}
+    #   freelancer: 5
+    #   email: 5
+    #   telegram: 3
+    # Links appended to applications sent by e-mail.
+    portfolio-links: []
+    #  - https://github.com/BabakBaylarli/freelance-job-radar

@@ -235,4 +235,49 @@ class JobRepositoryPersistenceTest {
 
         assertThat(botState.findById(BotStateEntity.SINGLETON_ID).orElseThrow().getDisabledMarkets()).containsExactly("RU");
     }
+
+    @Autowired
+    ApplicationRepository applications;
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void theDatabaseItselfRefusesASecondSentApplicationForTheSameJob() {
+        JobEntity job = jobs.saveAndFlush(job("freelancer", "app1", "https://x.test/app1", 6, true, Delivery.SENT_LIVE));
+        ApplicationEntity first = new ApplicationEntity(job.getId(), "freelancer", "text", null, null, null, null, NOW);
+        first.markSent("bid-1", NOW);
+        applications.saveAndFlush(first);
+        ApplicationEntity second = new ApplicationEntity(job.getId(), "email", "again", null, null, null, "hr@x.test", NOW);
+        second.markSent("msg-2", NOW.plusSeconds(60));
+
+        assertThatThrownBy(() -> applications.saveAndFlush(second)).isInstanceOf(DataIntegrityViolationException.class);
+        // drafts, failures and copies of the same job are fine: only SENT is unique
+        applications.saveAndFlush(new ApplicationEntity(job.getId(), "copy", "draft", null, null, null, null, NOW));
+        ApplicationEntity failed = new ApplicationEntity(job.getId(), "email", "failed", null, null, null, null, NOW);
+        failed.markFailed("smtp down", NOW);
+        applications.saveAndFlush(failed);
+        applications.deleteAll();
+    }
+
+    @Test
+    void applicationsRoundTripAndDailyCountsPerPlatform() {
+        JobEntity job = jobs.saveAndFlush(job("freelancer", "app2", "https://x.test/app2", 6, true, Delivery.SENT_LIVE));
+        ApplicationEntity sent = new ApplicationEntity(job.getId(), "freelancer", "proposal text", new java.math.BigDecimal("800"), "USD", 7, null, NOW);
+        sent.setDraftMessageId(555L);
+        sent.markSent("bid-9", NOW);
+        applications.save(sent);
+
+        ApplicationEntity found = applications.findFirstByDraftMessageIdOrderByIdDesc(555L).orElseThrow();
+        assertThat(found.getBidAmount()).isEqualByComparingTo("800");
+        assertThat(found.getStatus()).isEqualTo(ApplicationStatus.SENT);
+        assertThat(found.getResponseId()).isEqualTo("bid-9");
+        assertThat(applications.countByStatusAndSentAtGreaterThanEqual(ApplicationStatus.SENT, NOW.minusSeconds(60))).isEqualTo(1);
+        assertThat(applications.countByStatusAndPlatformAndSentAtGreaterThanEqual(ApplicationStatus.SENT, "email", NOW.minusSeconds(60))).isZero();
+        assertThat(applications.sentPerPlatformSince(NOW.minusSeconds(60))).singleElement()
+                .satisfies(row -> {
+                    assertThat(row.getPlatform()).isEqualTo("freelancer");
+                    assertThat(row.getSent()).isEqualTo(1);
+                });
+        assertThat(applications.findFirstByStatusOrderBySentAtDesc(ApplicationStatus.SENT)).isPresent();
+        assertThat(applications.findFirstByJobIdAndStatusInOrderByIdDesc(job.getId(), List.of(ApplicationStatus.DRAFT))).isEmpty();
+    }
 }
