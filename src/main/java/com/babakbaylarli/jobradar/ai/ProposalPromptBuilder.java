@@ -17,7 +17,7 @@ public class ProposalPromptBuilder {
     static final int MAX_DESCRIPTION_CHARS = 6000;
     static final int MAX_PROFILE_CHARS = 12000;
 
-    private static final Pattern TAG_BREAKOUT = Pattern.compile("</?\\s*(job|profile)\\s*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_BREAKOUT = Pattern.compile("</?\\s*(job|profile|draft)\\s*>", Pattern.CASE_INSENSITIVE);
 
     private static final String RULES = """
             You write a freelance job proposal on behalf of the freelancer described in <profile>.
@@ -40,6 +40,17 @@ public class ProposalPromptBuilder {
     public PromptParts build(Job job, String profile) {
         String system = RULES + "\n<profile>\n" + neutralize(HtmlText.truncate(profile.strip(), MAX_PROFILE_CHARS)) + "\n</profile>\n";
         return new PromptParts(system, userPrompt(job));
+    }
+
+    /** Prompt to revise an existing draft according to the owner's instruction, under the same rules and profile. */
+    public PromptParts buildRevision(Job job, String profile, String currentDraft, String instruction) {
+        PromptParts base = build(job, profile);
+        String system = base.system() + "\nYou are revising an existing draft. Apply the owner's instruction, keep every rule above, "
+                + "and keep claims limited to the profile. Output only the full revised proposal.\n";
+        String user = userPrompt(job).replace("\n\nWrite the proposal now.", "")
+                + "\n\n<draft>\n" + neutralize(currentDraft) + "\n</draft>\n\nOwner's instruction: " + neutralize(instruction)
+                + "\n\nWrite the revised proposal now.";
+        return new PromptParts(system, user);
     }
 
     private String userPrompt(Job job) {

@@ -88,6 +88,28 @@ public class HttpFetcher {
         return cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getClass().getSimpleName() + ": " + cause.getMessage();
     }
 
+    /** Result of a POST: the HTTP status and body, also for 4xx/5xx (the caller interprets error bodies). */
+    public record Response(int status, String body) {}
+
+    /**
+     * POST a JSON body. Deliberately <b>never retried</b>: a retry after a timeout could submit the same application
+     * twice. Network failures are reported as {@link SourceException} for the caller to turn into a visible failure.
+     */
+    public Response postJson(String url, String json, Map<String, String> headers) {
+        try {
+            return client.post()
+                    .uri(java.net.URI.create(url))
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .accept(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .headers(h -> headers.forEach(h::set))
+                    .body(json)
+                    .exchange((request, response) -> new Response(response.getStatusCode().value(),
+                            new String(response.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (RestClientException e) {
+            throw new SourceException("Network error calling " + java.net.URI.create(url).getHost() + ": " + describe(e), e);
+        }
+    }
+
     private static void sleep(long millis) {
         try {
             Thread.sleep(millis);

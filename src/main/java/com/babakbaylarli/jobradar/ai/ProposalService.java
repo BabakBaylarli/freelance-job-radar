@@ -37,6 +37,25 @@ public class ProposalService {
         return generator.available();
     }
 
+    /** Revise a draft following the owner's instruction (e.g. "shorter, mention Kafka"). */
+    public Outcome revise(Job job, String currentDraft, String instruction) {
+        if (!generator.available()) {
+            return new Outcome.Disabled();
+        }
+        Optional<String> profile = profileLoader.load();
+        if (profile.isEmpty()) {
+            return new Outcome.Failed("I can't find your profile at %s (or it is empty).".formatted(profileLoader.path()));
+        }
+        try {
+            return new Outcome.Drafted(generator.generate(promptBuilder.buildRevision(job, profile.get(), currentDraft, instruction)));
+        } catch (ProposalException e) {
+            return new Outcome.Failed(e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("event=proposal_revise_error job={}", job.url(), e);
+            return new Outcome.Failed("Unexpected error while revising the proposal.");
+        }
+    }
+
     public Outcome draft(Job job) {
         if (!generator.available()) {
             return new Outcome.Disabled();
