@@ -48,6 +48,26 @@ public final class TestSupport {
         return props(baseUrl, hnRemoteOnly, true);
     }
 
+    /** Copy of {@code base} with different e-mail alert settings. */
+    public static JobRadarProperties withEmailAlerts(JobRadarProperties base, JobRadarProperties.EmailAlerts email) {
+        JobRadarProperties.Sources s = base.sources();
+        return new JobRadarProperties(base.telegram(), base.ai(), base.matching(), base.notifications(), base.http(),
+                new Sources(s.weWorkRemotely(), s.remotive(), s.remoteOk(), s.hackerNews(), s.freelancer(), s.himalayas(), s.jobicy(), s.workingNomads(),
+                        s.flRu(), s.hh(), s.freelancehunt(), s.dou(), email, s.telegramChannels()), base.profilePath());
+    }
+
+    /** Parse a saved sample e-mail from {@code src/test/resources/emails}. */
+    public static jakarta.mail.internet.MimeMessage sampleMail(String name) {
+        try (InputStream in = TestSupport.class.getResourceAsStream("/emails/" + name + ".eml")) {
+            if (in == null) {
+                throw new IllegalArgumentException("Missing sample e-mail " + name);
+            }
+            return new jakarta.mail.internet.MimeMessage(jakarta.mail.Session.getInstance(new java.util.Properties()), in);
+        } catch (IOException | jakarta.mail.MessagingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** Same, but without any token / contact e-mail configured. */
     public static JobRadarProperties propsWithoutSecrets(String baseUrl) {
         return props(baseUrl, true, false);
@@ -73,7 +93,7 @@ public final class TestSupport {
                         new JobRadarProperties.Hh(true, Duration.ofHours(6), baseUrl, secrets ? "me@example.org" : null, List.of("java"), "REMOTE", List.of("PROJECT", "PART"), 50),
                         new JobRadarProperties.Freelancehunt(true, Duration.ofHours(3), baseUrl, secrets ? "fh-token" : null, List.of()),
                         new JobRadarProperties.Dou(true, Duration.ofHours(6), baseUrl, List.of("Java"), true),
-                        new JobRadarProperties.EmailAlerts(false, Duration.ofMinutes(15), "localhost", 993, null, null, "JobAlerts", 30),
+                        new JobRadarProperties.EmailAlerts(false, Duration.ofMinutes(15), "localhost", 993, true, null, null, "JobAlerts", 30),
                         new JobRadarProperties.TelegramChannels(false, Duration.ofMinutes(30), null, null, null, "/tmp/tdlight", List.of(), 50)),
                 "config/profile.md");
     }

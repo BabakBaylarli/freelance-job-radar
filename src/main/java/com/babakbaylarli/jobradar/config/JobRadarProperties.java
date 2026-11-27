@@ -185,6 +185,7 @@ public record JobRadarProperties(
             @DefaultValue("15m") Duration pollInterval,
             @DefaultValue("imap.gmail.com") String host,
             @DefaultValue("993") int port,
+            @DefaultValue("true") boolean ssl,
             String username,
             String appPassword,
             @DefaultValue("JobAlerts") String folder,

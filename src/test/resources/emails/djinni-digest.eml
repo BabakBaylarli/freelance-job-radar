@@ -1,0 +1,26 @@
+From: Djinni <no-reply@djinni.co>
+To: me@example.org
+Subject: Нові вакансії: Java
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <djinni-digest@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<h2>Нові вакансії для вас</h2>
+<div class="job"><a href="https://djinni.co/jobs/712345-senior-java-developer/?utm_source=digest&amp;utm_medium=email">Senior Java Developer</a>
+<div>Example Software · Remote, Ukraine</div><div>$4000-5500</div><div>Spring Boot, Kafka, PostgreSQL. Fintech product.</div></div>
+<div class="job"><a href="https://djinni.co/jobs/712399-qa-engineer/?utm_source=digest">QA Engineer</a>
+<div>Acme QA · Kyiv</div><div>до $2500</div></div>
+</body></html>
+
+--b1--

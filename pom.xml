@@ -24,7 +24,20 @@
         <anthropic.version>3.14.0</anthropic.version>
         <jsoup.version>1.24.1</jsoup.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <greenmail.version>2.1.15</greenmail.version>
+        <tdlight.version>3.5.9+td.1.8.68</tdlight.version>
+        <tdlight.natives.version>4.0.597</tdlight.natives.version>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>mchv</id>
+            <name>TDLight repository</name>
+            <url>https://mvn.mchv.eu/repository/mchv/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -72,6 +85,34 @@
             <version>${anthropic.version}</version>
         </dependency>
 
+        <!-- IMAP (job alert e-mails) and SMTP (sending applications by e-mail) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Telegram client API (MTProto) to read public channels with the owner's own account. TDLight is published on
+             its own Maven repository (see <repositories>). The natives are only loaded when the channel source is enabled. -->
+        <dependency>
+            <groupId>it.tdlight</groupId>
+            <artifactId>tdlight-java</artifactId>
+            <version>${tdlight.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>it.tdlight</groupId>
+            <artifactId>tdlight-natives</artifactId>
+            <version>${tdlight.natives.version}</version>
+            <classifier>linux_amd64_gnu_ssl3</classifier>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>it.tdlight</groupId>
+            <artifactId>tdlight-natives</artifactId>
+            <version>${tdlight.natives.version}</version>
+            <classifier>linux_arm64_gnu_ssl3</classifier>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Only used to turn the HTML in job descriptions into plain text -->
         <dependency>
             <groupId>org.jsoup</groupId>
@@ -104,6 +145,12 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail-junit5</artifactId>
+            <version>${greenmail.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>

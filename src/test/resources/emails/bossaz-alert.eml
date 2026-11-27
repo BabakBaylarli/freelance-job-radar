@@ -1,0 +1,23 @@
+From: Boss.az <no-reply@boss.az>
+To: me@example.org
+Subject: Yeni vakansiyalar: Java
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <bossaz-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body><h3>Yeni vakansiyalar</h3>
+<p><a href="https://boss.az/vacancies/998877">Java proqramçı (uzaqdan)</a> - Example MMC</p>
+<p><a href="https://boss.az/vacancies/998878">Mühasib</a></p>
+<p><a href="https://boss.az/unsubscribe?token=abc">Abunəlikdən çıx</a></p></body></html>
+
+--b1--

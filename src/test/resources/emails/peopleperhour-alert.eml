@@ -1,0 +1,22 @@
+From: PeoplePerHour <noreply@peopleperhour.com>
+To: me@example.org
+Subject: Jobs for you
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <peopleperhour-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body><p>Hourlies and jobs for you</p>
+<div><a href="https://www.peopleperhour.com/freelance-jobs/technology-programming/java-developer-for-api-integration-4412345">Java developer for API integration</a>
+<div>£400</div><div>Integrate a payments provider into our Spring app.</div></div></body></html>
+
+--b1--
