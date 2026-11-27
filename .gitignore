@@ -7,3 +7,4 @@ target/
 # secrets and personal data - never commit
 .env
 config/profile.md
+config/cv.pdf

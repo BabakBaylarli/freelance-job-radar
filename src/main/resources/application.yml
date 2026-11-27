@@ -3,7 +3,7 @@ spring:
     name: freelance-job-radar
   config:
     # User-editable matching rules (weights, excludes, threshold). Optional so tests/dev work without it.
-    import: optional:file:./config/keywords.yml,optional:file:./config/channels.yml
+    import: optional:file:./config/keywords.yml,optional:file:./config/channels.yml,optional:file:./config/apply.yml
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/jobradar}
     username: ${DB_USER:jobradar}
@@ -71,6 +71,20 @@ jobradar:
       start: ${QUIET_HOURS_START:00:00}
       end: ${QUIET_HOURS_END:08:00}
       zone: ${QUIET_HOURS_ZONE:Asia/Baku}
+
+  # One-tap apply: nothing is ever sent without your explicit approval of that specific job. Personal values (rates,
+  # portfolio links) live in config/apply.yml.
+  apply:
+    daily-limit: ${APPLY_DAILY_LIMIT:10}      # applications the bot may send per day, all platforms together
+    min-gap: PT2M                             # minimum time between two sends
+    default-days: 7
+    cv-path: ${CV_PATH:config/cv.pdf}          # attached to e-mail applications if the file exists
+    zone: ${APPLY_ZONE:Asia/Baku}              # defines "today" for the daily limits
+    smtp:
+      host: ${SMTP_HOST:smtp.gmail.com}
+      port: ${SMTP_PORT:587}
+      starttls: true
+    freelancer-milestone-percentage: ${FREELANCER_MILESTONE_PERCENTAGE:}
 
   # Each source can be switched off and given its own poll interval.
   # Remotive asks API users not to poll more than a few times a day, so keep it at 6h or more.
