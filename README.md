@@ -126,7 +126,7 @@ A fuller template is in [`config/profile.example.md`](config/profile.example.md)
 ```yaml
 jobradar:
   matching:
-    min-score: 4            # send jobs with score >= 4 that are not excluded
+    min-score: 5            # send jobs with score >= 5 that are not excluded
     notify-max-age: P7D     # older jobs are stored but not sent
     include:                # score = sum of weights of the keywords found (each counts once)
       - { term: java, weight: 3 }
@@ -219,7 +219,7 @@ src/main/java/com/babakbaylarli/jobradar/
 | Notification policy (pause, quiet hours, hourly limit, digest) | Testcontainers PostgreSQL + a recording Telegram gateway |
 | Whole app boots with no Telegram/AI keys, health is `UP`, feed → scoring → Postgres | `@SpringBootTest` + Testcontainers + WireMock |
 
-The sample payloads are written to follow each source's documented response format; they are not captures of live responses, so the adapters are tested against the documented shape rather than live data.
+The sample payloads in the repo are hand-written to follow each source's documented response format (live payloads are third-party content and are not committed). The four adapters were also run once against the live feeds on 2026-11-27: We Work Remotely, Remotive, RemoteOK and Hacker News parsed 26, 16, 100 and 132 jobs with dates, URLs and company names.
 
 CI (GitHub Actions) runs `mvn clean verify` and builds the Docker image on every push and pull request.
 

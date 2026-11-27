@@ -4,7 +4,7 @@
 # (each keyword counts once). A job is sent to you when it is NOT excluded and score >= min-score.
 jobradar:
   matching:
-    min-score: 4
+    min-score: 5   # 4 lets weak domain-only matches through (e.g. just "payments" + "banking")
     # Jobs older than this are stored but not sent (avoids a flood of stale jobs on first start).
     notify-max-age: P7D
     include:
