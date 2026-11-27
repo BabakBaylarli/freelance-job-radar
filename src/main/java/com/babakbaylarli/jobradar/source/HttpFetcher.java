@@ -3,6 +3,7 @@ package com.babakbaylarli.jobradar.source;
 import com.babakbaylarli.jobradar.config.JobRadarProperties;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.NestedExceptionUtils;
@@ -45,12 +46,18 @@ public class HttpFetcher {
     }
 
     public String get(String url, String accept) {
+        return get(url, accept, Map.of());
+    }
+
+    /** GET with extra request headers (tokens, vendor-specific user agents). */
+    public String get(String url, String accept, Map<String, String> headers) {
         RuntimeException last = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 String body = client.get()
                         .uri(java.net.URI.create(url))
                         .header(HttpHeaders.ACCEPT, accept)
+                        .headers(h -> headers.forEach(h::set))
                         .retrieve()
                         .body(String.class);
                 if (body == null || body.isBlank()) {

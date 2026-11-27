@@ -1,0 +1,11 @@
+{"items":[
+ {"id":"900001","name":"Java-разработчик (проектная работа)","alternate_url":"https://hh.example/vacancy/900001",
+  "employer":{"id":"1","name":"ООО Пример"},"salary_range":{"from":150000,"to":250000,"currency":"RUR","gross":false},
+  "snippet":{"requirement":"Опыт <highlighttext>Java</highlighttext> от 2 лет, Spring Boot","responsibility":"Разработка сервисов <highlighttext>платежей</highlighttext>"},
+  "published_at":"2026-11-26T10:13:35+0300","area":{"id":"1","name":"Москва"},
+  "work_format":[{"id":"REMOTE","name":"Удалённо"}],"employment_form":{"id":"PROJECT","name":"Проект"}},
+ {"id":"900002","name":"Backend developer","alternate_url":"https://hh.example/vacancy/900002","employer":{"name":"Example Ltd"},
+  "salary":{"from":null,"to":4000,"currency":"USD","gross":true},"snippet":{"requirement":null,"responsibility":null},
+  "published_at":"2026-11-25T09:00:00+0300","area":{"name":"Remote"}},
+ {"id":"","name":"broken","alternate_url":""}
+],"found":3,"pages":1}

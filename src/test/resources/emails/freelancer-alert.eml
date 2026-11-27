@@ -1,0 +1,24 @@
+From: Freelancer.com <noreply@freelancer.com>
+To: me@example.org
+Subject: New projects for you
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <freelancer-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body><h3>New projects matching your skills</h3>
+<div><a href="https://www.freelancer.com/projects/java/Spring-Boot-payment-microservice?utm_source=email">Spring Boot payment microservice</a>
+<div>Budget: $500 - $1500 USD</div><div>Need a Java developer to build a payments microservice with Kafka.</div></div>
+<div><a href="https://www.freelancer.com/projects/php/Fix-checkout-bug">Fix checkout bug</a><div>$30 - $250 USD</div></div>
+</body></html>
+
+--b1--

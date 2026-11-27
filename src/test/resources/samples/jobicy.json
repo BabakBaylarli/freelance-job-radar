@@ -1,0 +1,10 @@
+{"apiVersion":"2.3.05","friendlyNotice":"Please credit Jobicy with a direct link to the source.","jobCount":2,"success":true,"jobs":[
+ {"id":157144,"url":"https://jobicy.example/jobs/157144-backend-engineer-java","jobSlug":"157144-backend-engineer-java",
+  "jobTitle":"Backend Engineer, Java","companyName":"Example Exchange","jobIndustry":["Software Engineering"],"jobType":["Full-Time"],
+  "jobGeo":"Europe,  UK","jobLevel":"Senior","jobExcerpt":"Build trading systems.",
+  "jobDescription":"<p>Build <strong>trading</strong> systems in Java.</p>","pubDate":"2026-11-26T04:30:34+00:00",
+  "salaryMin":90000,"salaryMax":120000,"salaryCurrency":"EUR","salaryPeriod":"yearly"},
+ {"id":157145,"url":"https://jobicy.example/jobs/157145-office-manager","jobTitle":"Remote Office Manager","companyName":"Acme",
+  "jobIndustry":["Admin"],"jobType":["Part-Time"],"jobGeo":"Anywhere","jobLevel":"Any","jobDescription":"<p>Coordinate things.</p>",
+  "pubDate":"2026-11-25T09:00:00+00:00"}
+]}

@@ -1,0 +1,11 @@
+{"comments":"Search results come 20 to a page.","updatedAt":1795719509,"offset":0,"limit":20,"totalCount":2,"jobs":[
+ {"title":"Senior Backend Engineer (Java)","excerpt":"Build payment services.","companyName":"Example Pay Ltd","companySlug":"example-pay",
+  "employmentType":"Full Time","minSalary":95000,"maxSalary":130000,"salaryPeriod":"annual","seniority":["Senior"],"currency":"USD",
+  "locationRestrictions":["Germany","Poland"],"categories":["Backend-Engineer","Java-Developer"],
+  "description":"<p>Design <b>Java</b> services.</p><ul><li>Spring Boot</li><li>Kafka</li></ul>","pubDate":1795765987,
+  "applicationLink":"https://himalayas.example/companies/example-pay/jobs/senior-backend-engineer-java?utm_source=api",
+  "guid":"https://himalayas.example/companies/example-pay/jobs/senior-backend-engineer-java"},
+ {"title":"Support Engineer","excerpt":"Help customers.","companyName":"Acme Support","employmentType":"Part Time","minSalary":null,"maxSalary":null,
+  "salaryPeriod":"annual","seniority":[],"currency":null,"locationRestrictions":[],"categories":["Support"],"description":"<p>Answer tickets.</p>",
+  "pubDate":1795700000,"guid":"https://himalayas.example/companies/acme-support/jobs/support-engineer"}
+]}

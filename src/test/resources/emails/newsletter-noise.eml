@@ -1,0 +1,20 @@
+From: News <news@newsletter.example>
+To: me@example.org
+Subject: Weekly digest
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <newsletter-noise@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body><p>Our weekly newsletter</p><a href="https://newsletter.example/unsubscribe">Unsubscribe</a> <a href="mailto:hi@newsletter.example">Contact</a></body></html>
+
+--b1--

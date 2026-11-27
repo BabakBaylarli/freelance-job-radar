@@ -1,0 +1,22 @@
+From: Guru <noreply@guru.com>
+To: me@example.org
+Subject: New Guru jobs
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <guru-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body><p>New jobs for you</p>
+<div><a href="https://www.guru.com/jobs/java-backend-developer-needed/2012345">Java backend developer needed</a>
+<div>Budget: $2,000 Fixed Price</div><div>Build REST APIs with Spring Boot.</div></div></body></html>
+
+--b1--

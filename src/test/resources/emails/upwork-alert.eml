@@ -1,0 +1,34 @@
+From: Upwork <donotreply@upwork.com>
+To: me@example.org
+Subject: New jobs matching java backend
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <upwork-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Jobs that match your saved search "java backend"</p>
+<table><tr><td>
+  <a href="https://www.upwork.com/jobs/~01abc123def4567890?referrer_url_path=/nx/find-work/&amp;pageTitle=Job">Java Spring Boot developer for payment API</a>
+  <div>Hourly: $30.00-$60.00 - Posted 5 minutes ago</div>
+  <div>We need an experienced Java developer to extend our payments API. Kafka experience preferred.</div>
+  <a href="https://www.upwork.com/jobs/~01abc123def4567890?referrer=view">View job</a>
+</td></tr>
+<tr><td>
+  <a href="https://click.upwork.com/f/a/xyz?u=https%3A%2F%2Fwww.upwork.com%2Fjobs%2F~01fff999eee8887776%3Freferrer%3Dalert">Fix flaky integration tests in Spring service</a>
+  <div>Fixed-price - Est. Budget: $1,200</div>
+  <div>Our CI has flaky tests, looking for someone to stabilise them.</div>
+</td></tr></table>
+<p><a href="https://www.upwork.com/ab/account-security/unsubscribe">Unsubscribe</a></p>
+</body></html>
+
+--b1--

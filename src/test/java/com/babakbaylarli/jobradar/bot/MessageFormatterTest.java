@@ -105,7 +105,7 @@ class MessageFormatterTest {
 
         MessageFormatter.DigestMessage digest = formatter.digest(jobs, 5, "Digest — 2 matches");
 
-        assertThat(digest.html()).contains("📬 <b>Digest — 2 matches</b>").contains("1. <b>First</b>").contains("2. <b>Second</b>")
+        assertThat(digest.html()).contains("📬 <b>Digest — 2 matches</b>").contains("1. 🌍 <b>First</b>").contains("2. 🌍 <b>Second</b>")
                 .contains("…and 5 more waiting — send /digest");
         assertThat(digest.included()).hasSize(2);
         assertThat(digest.keyboard().rows()).hasSize(2);
@@ -146,7 +146,7 @@ class MessageFormatterTest {
         SourceStateEntity bad = new SourceStateEntity("remoteok");
         bad.recordFailure(NOW.minus(Duration.ofMinutes(5)), "HTTP 429 <rate>");
 
-        String text = formatter.stats(List.of("remotive", "remoteok", "hackernews"), List.of(stats),
+        String text = formatter.stats(List.of("remotive", "remoteok", "hackernews"), List.of(stats), List.of(),
                 Map.of("remotive", ok, "remoteok", bad), NOW);
 
         assertThat(text).contains("<b>Remotive</b> — seen 42, matched 5").contains("✅ polled 2h ago")
@@ -158,7 +158,7 @@ class MessageFormatterTest {
     void keywordsShowWeightsSortedExcludesAndSettings() {
         JobRadarProperties base = TestSupport.props("http://unused");
         JobRadarProperties props = new JobRadarProperties(base.telegram(), base.ai(),
-                TestSupport.matching(4, List.of(new Keyword("kafka", 2), new Keyword("java", 3), new Keyword("c++", 1)), List.of("onsite", "us only")),
+                TestSupport.matching(4, List.of(Keyword.of("kafka", 2), Keyword.of("java", 3), Keyword.of("c++", 1)), List.of("onsite", "us only")),
                 new JobRadarProperties.Notifications(6, 10, Duration.ofHours(6),
                         new com.babakbaylarli.jobradar.config.QuietHoursSettings(true, java.time.LocalTime.MIDNIGHT, java.time.LocalTime.of(8, 0), java.time.ZoneId.of("Asia/Baku"))),
                 base.http(), base.sources(), base.profilePath());
@@ -181,5 +181,67 @@ class MessageFormatterTest {
         assertThat(formatter.help()).contains("/digest", "/saved", "/stats", "/keywords", "/pause", "/resume", "/help");
         assertThat(formatter.welcome(true, false)).contains("paused").contains("AI proposals are disabled");
         assertThat(formatter.welcome(false, true)).doesNotContain("paused").doesNotContain("disabled");
+    }
+
+    @Test
+    void cardShowsMarketFlagTypeAndTheOtherPlatformsTheJobWasSeenOn() {
+        JobEntity ru = new JobEntity(new com.babakbaylarli.jobradar.source.Job("flru", "1", "Сервис оплаты", "", "https://fl.example/p/1", List.of(), "d",
+                null, NOW, com.babakbaylarli.jobradar.source.Market.RU, com.babakbaylarli.jobradar.source.JobType.FREELANCE_PROJECT,
+                com.babakbaylarli.jobradar.source.Budget.of(45000, null, "RUB", false)), "https://fl.example/p/1", NOW, 8, List.of("java"), null, true,
+                Delivery.PENDING, "key");
+        ru.addAlsoOn("freelancehunt", "https://fh.example/p/9");
+        ReflectionTestUtils.setField(ru, "id", 3L);
+
+        String card = formatter.jobCard(ru);
+
+        assertThat(card).contains("🇷🇺 Freelance project").contains("via FL.ru").contains("💰 45,000 RUB")
+                .contains("<a href=\"https://fh.example/p/9\">Also on Freelancehunt</a>");
+        assertThat(formatter.digest(List.of(ru), 0, "Digest").html()).contains("1. 🇷🇺 <b>Сервис оплаты</b>").contains(">Freelancehunt</a>");
+    }
+
+    @Test
+    void emailAndTelegramSourcesGetReadableNames() {
+        assertThat(MessageFormatter.sourceName("email:upwork")).isEqualTo("Upwork (email alert)");
+        assertThat(MessageFormatter.sourceName("telegram:remote_jobs_ru")).isEqualTo("Telegram @remote_jobs_ru");
+        assertThat(MessageFormatter.sourceName("flru")).isEqualTo("FL.ru");
+        assertThat(MessageFormatter.sourceName("unknown-source")).isEqualTo("unknown-source");
+    }
+
+    @Test
+    void statsIncludeTheMarketBreakdownAndSubSourcesShareTheirParentsPollState() {
+        SourceStateEntity emailState = new SourceStateEntity("email");
+        emailState.recordSuccess(NOW.minus(Duration.ofMinutes(10)), 3, 3);
+        com.babakbaylarli.jobradar.persistence.JobRepository.SourceStats emailStats = new com.babakbaylarli.jobradar.persistence.JobRepository.SourceStats() {
+            public String getSource() { return "email:upwork"; }
+            public long getSeen() { return 4; }
+            public long getMatched() { return 2; }
+        };
+        com.babakbaylarli.jobradar.persistence.JobRepository.MarketStats ru = new com.babakbaylarli.jobradar.persistence.JobRepository.MarketStats() {
+            public com.babakbaylarli.jobradar.source.Market getMarket() { return com.babakbaylarli.jobradar.source.Market.RU; }
+            public long getSeen() { return 30; }
+            public long getMatched() { return 4; }
+        };
+
+        String text = formatter.stats(List.of(), List.of(emailStats), List.of(ru), Map.of("email", emailState), NOW);
+
+        assertThat(text).contains("<b>Upwork (email alert)</b> — seen 4, matched 2").contains("polled 10m ago")
+                .contains("<b>By market</b>").contains("🇷🇺 seen 30, matched 4");
+    }
+
+    @Test
+    void sourcesViewDistinguishesActiveDisabledAndSkipped() {
+        var entries = List.of(
+                new com.babakbaylarli.jobradar.source.SourceCatalog.Entry("remotive", "Remotive", com.babakbaylarli.jobradar.source.SourceCatalog.Status.ACTIVE, null),
+                new com.babakbaylarli.jobradar.source.SourceCatalog.Entry("freelancehunt", "Freelancehunt", com.babakbaylarli.jobradar.source.SourceCatalog.Status.SKIPPED, "FREELANCEHUNT_TOKEN is not set"),
+                new com.babakbaylarli.jobradar.source.SourceCatalog.Entry("dou", "DOU", com.babakbaylarli.jobradar.source.SourceCatalog.Status.DISABLED, null));
+        SourceStateEntity failed = new SourceStateEntity("remotive");
+        failed.recordSuccess(NOW.minus(Duration.ofHours(5)), 5, 1);
+        failed.recordFailure(NOW.minus(Duration.ofMinutes(20)), "HTTP 429 <slow down>");
+
+        String text = formatter.sources(entries, Map.of("remotive", failed), Map.of("remotive", 12L), NOW);
+
+        assertThat(text).contains("<b>Remotive</b> — 🟢 on · last success 5h ago").contains("⚠️ last error: HTTP 429 &lt;slow down&gt;")
+                .contains("jobs in last 24h: 12").contains("<b>Freelancehunt</b> — 🟡 skipped: FREELANCEHUNT_TOKEN is not set")
+                .contains("<b>DOU</b> — ⚪ off");
     }
 }

@@ -1,0 +1,27 @@
+From: LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>
+To: me@example.org
+Subject: 2 new jobs for java backend
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <linkedin-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<table><tr><td><a href="https://www.linkedin.com/comm/jobs/view/3912345678/?trackingId=abc&amp;refId=def"><img src="https://media.example/logo.png" alt=""></a></td>
+<td><a href="https://www.linkedin.com/comm/jobs/view/3912345678/?trackingId=abc&amp;refId=def">Backend Engineer (Java)</a>
+<div>Example Bank</div><div>Warsaw, Poland (Remote)</div></td></tr></table>
+<table><tr><td><a href="https://www.linkedin.com/comm/jobs/view/3912399999/?trackingId=zzz">Platform Engineer</a>
+<div>Globex Payments</div><div>Remote</div></td></tr></table>
+<a href="https://www.linkedin.com/comm/jobs/?keywords=java">See all jobs on LinkedIn</a>
+</body></html>
+
+--b1--

@@ -1,0 +1,11 @@
+{"data":[
+ {"id":1666882,"type":"project","attributes":{"name":"REST API на Spring Boot для магазину","description":"Потрібен бекенд.",
+  "description_html":"<p>Потрібен <b>бекенд</b> на Spring Boot.</p><p>PostgreSQL, Docker.</p>","skills":[{"id":1,"name":"Java"},{"id":2,"name":"PostgreSQL"}],
+  "budget":{"amount":30000,"currency":"UAH"},"is_remote_job":true,"published_at":"2026-11-27T10:40:10+02:00",
+  "employer":{"id":1,"login":"private_person","first_name":"Ivan","last_name":"Petrenko","company":null}},
+  "links":{"self":{"api":"https://api.freelancehunt.example/v2/projects/1666882","web":"https://freelancehunt.example/project/rest-api/1666882.html"}}},
+ {"id":1666883,"type":"project","attributes":{"name":"Лендінг","description":"Потрібен лендінг.","skills":[{"id":3,"name":"HTML"}],
+  "budget":null,"is_remote_job":false,"published_at":"2026-11-27T09:00:00+02:00",
+  "employer":{"id":2,"login":"firm","company":{"id":9,"name":"WEWER"}}},
+  "links":{"self":{"web":"https://freelancehunt.example/project/landing/1666883.html"}}}
+],"links":{"self":"https://api.freelancehunt.example/v2/projects"}}

@@ -1,0 +1,24 @@
+From: Kwork <no-reply@kwork.ru>
+To: me@example.org
+Subject: Новые проекты на Kwork
+Date: Fri, 27 Nov 2026 09:30:00 +0000
+Message-ID: <kwork-alert@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=UTF-8
+
+This message needs an HTML capable client.
+
+--b1
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<html><body><p>Новые проекты по вашим категориям</p>
+<div><a href="https://kwork.ru/projects/2345678/view">Доработать Java-сервис платежей</a>
+<div>Желаемый бюджет: до 15 000 ₽</div><div>Нужно добавить интеграцию с банком и тесты.</div></div>
+<div><a href="https://kwork.ru/projects/2345999/view">Логотип для кафе</a><div>Желаемый бюджет: до 2 000 ₽</div></div>
+</body></html>
+
+--b1--

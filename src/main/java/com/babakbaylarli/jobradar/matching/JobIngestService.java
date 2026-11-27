@@ -7,9 +7,11 @@ import com.babakbaylarli.jobradar.persistence.JobRepository;
 import com.babakbaylarli.jobradar.source.HtmlText;
 import com.babakbaylarli.jobradar.source.Job;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,7 @@ public class JobIngestService {
 
     private static final Logger log = LoggerFactory.getLogger(JobIngestService.class);
     private static final int MAX_URL_LENGTH = 2000;
+    private static final Duration CROSS_SOURCE_WINDOW = Duration.ofDays(3);
 
     public record IngestResult(int fetched, int created, int matched, int duplicates, int rejected) {}
 
@@ -63,38 +66,57 @@ public class JobIngestService {
                 continue;
             }
 
+            job = clamp(job);
+            String dedupKey = DedupKey.of(job);
+            if (mergeIntoExisting(job, url, dedupKey, now)) {
+                duplicates++;
+                continue;
+            }
+
             ScoreResult result = scorer.score(job);
             boolean fresh = job.postedAt() == null || job.postedAt().isAfter(now.minus(matching.notifyMaxAge()));
             Delivery delivery = result.matched() && fresh ? Delivery.PENDING : Delivery.NONE;
             try {
-                repository.save(new JobEntity(
-                        job.source(),
-                        job.externalId(),
-                        url,
-                        HtmlText.truncate(job.title(), 500),
-                        HtmlText.truncate(job.company(), 255),
-                        job.tags(),
-                        HtmlText.truncate(job.description(), 20_000),
-                        job.salary() == null ? null : HtmlText.truncate(job.salary(), 255),
-                        job.postedAt(),
-                        now,
-                        result.score(),
-                        result.matchedKeywords(),
-                        result.excludedBy(),
-                        result.matched(),
-                        delivery));
+                repository.save(new JobEntity(job, url, now, result.score(), result.matchedKeywords(), result.excludedBy(),
+                        result.matched(), delivery, dedupKey));
                 created++;
                 if (result.matched()) {
                     matched++;
                 }
             } catch (DataIntegrityViolationException e) {
-                // Lost a race with a concurrent poll: the unique constraints are the source of truth.
-                duplicates++;
+                if (repository.existsBySourceAndExternalId(job.source(), job.externalId()) || repository.existsByUrl(url)) {
+                    duplicates++; // lost a race with a concurrent poll: the unique constraints are the source of truth
+                } else {
+                    rejected++;
+                    log.warn("event=job_rejected source={} id={} reason={}", job.source(), job.externalId(), e.getMostSpecificCause().getMessage());
+                }
             }
         }
         log.info("event=ingest fetched={} created={} matched={} duplicates={} rejected={}",
                 jobs.size(), created, matched, duplicates, rejected);
         return new IngestResult(jobs.size(), created, matched, duplicates, rejected);
+    }
+
+    /** Same posting already seen on another platform within the window: remember the extra link instead of re-notifying. */
+    private boolean mergeIntoExisting(Job job, String url, String dedupKey, Instant now) {
+        if (dedupKey == null) {
+            return false;
+        }
+        Optional<JobEntity> original = repository.findFirstByDedupKeyAndFirstSeenAtAfterOrderByIdAsc(dedupKey, now.minus(CROSS_SOURCE_WINDOW));
+        if (original.isEmpty() || original.get().getSource().equals(job.source())) {
+            return false; // same platform re-listing is not a cross-source duplicate
+        }
+        original.get().addAlsoOn(job.source(), url);
+        repository.save(original.get());
+        log.debug("event=cross_source_duplicate original={} also={}", original.get().getUrl(), url);
+        return true;
+    }
+
+    /** Keep free text within the column sizes. */
+    private static Job clamp(Job job) {
+        return new Job(job.source(), job.externalId(), HtmlText.truncate(job.title(), 500), HtmlText.truncate(job.company(), 255),
+                job.url(), job.tags(), HtmlText.truncate(job.description(), 20_000),
+                job.salary() == null ? null : HtmlText.truncate(job.salary(), 255), job.postedAt(), job.market(), job.type(), job.budget());
     }
 
     private static boolean isValid(Job job, String url) {

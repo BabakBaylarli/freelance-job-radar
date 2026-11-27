@@ -1,0 +1,11 @@
+{"status":"success","result":{"projects":[
+ {"id":40000001,"title":"Spring Boot payment microservice","status":"active","seo_url":"java/Spring-Boot-payment-microservice",
+  "currency":{"id":1,"code":"USD","sign":"$"},"description":"Need a Java developer to build a payments microservice.\nKafka is a plus.",
+  "preview_description":"Need a Java developer to build a payments...","jobs":[{"id":7,"name":"Java"},{"id":9,"name":"Kafka"}],
+  "type":"fixed","budget":{"minimum":500.0,"maximum":1500.0},"time_submitted":1795747244},
+ {"id":40000002,"title":"Hourly Java support","status":"active","seo_url":"java/Hourly-Java-support",
+  "currency":{"id":3,"code":"EUR","sign":"€"},"description":"Ongoing support of a Spring application.","jobs":[{"id":7,"name":"Java"}],
+  "type":"hourly","budget":{"minimum":20.0,"maximum":40.0},"time_submitted":1795740000},
+ {"id":40000003,"title":"Already closed project","status":"closed","seo_url":"x/closed","currency":{"code":"USD"},"description":"",
+  "jobs":[],"type":"fixed","budget":{"minimum":1,"maximum":2},"time_submitted":1795000000}
+],"total_count":3}}

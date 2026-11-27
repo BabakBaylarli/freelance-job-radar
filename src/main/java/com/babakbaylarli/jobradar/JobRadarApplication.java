@@ -12,6 +12,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class JobRadarApplication {
 
     public static void main(String[] args) {
+        if (java.util.Arrays.asList(args).contains("--telegram-login")) {
+            // one-time interactive login for the Telegram channel source; does not start the application
+            System.exit(com.babakbaylarli.jobradar.source.telegram.TelegramLoginCli.run(System.getenv()));
+        }
         SpringApplication.run(JobRadarApplication.class, args);
     }
 }

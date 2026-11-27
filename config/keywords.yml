@@ -1,25 +1,35 @@
-# Matching rules. Edit freely - docker compose mounts this file, restart the app after changes.
+# Matching rules. Edit freely - docker compose mounts this directory, restart the app after changes.
 #
 # score = sum of the weights of the include keywords found in title + tags + description
-# (each keyword counts once). A job is sent to you when it is NOT excluded and score >= min-score.
+# (each keyword counts once, no matter how many of its aliases appear). A job is sent to you when it is
+# NOT excluded and score >= min-score. Aliases are other spellings or languages of the same keyword
+# (Russian / Ukrainian / Azerbaijani), matched as whole words, case-insensitive.
 jobradar:
   matching:
     min-score: 5   # 4 lets weak domain-only matches through (e.g. just "payments" + "banking")
     # Jobs older than this are stored but not sent (avoids a flood of stale jobs on first start).
     notify-max-age: P7D
+    # Minimum FIXED budget per currency for freelance projects (the budget's upper bound is compared).
+    # Hourly rates, salaries of vacancies and projects without a stated budget are never filtered by this.
+    min-budget:
+      USD: 300
+      EUR: 300
+      RUB: 20000
+      UAH: 10000
+      AZN: 300
     include:
       - { term: java, weight: 3 }
       - { term: spring, weight: 3 }
       - { term: spring boot, weight: 1 }
       - { term: kafka, weight: 2 }
       - { term: elasticsearch, weight: 2 }
-      - { term: postgresql, weight: 1 }
-      - { term: microservices, weight: 1 }
-      - { term: fintech, weight: 2 }
-      - { term: payments, weight: 2 }
-      - { term: banking, weight: 2 }
-      - { term: backend, weight: 1 }
-      - { term: back-end, weight: 1 }
+      - { term: postgresql, weight: 1, aliases: [postgres] }
+      - { term: microservices, weight: 1, aliases: [микросервисы, микросервис, мікросервіси, mikroservis] }
+      - { term: fintech, weight: 2, aliases: [финтех, фінтех] }
+      - { term: payments, weight: 2, aliases: [платежи, платежей, платежный, платежі, платіжний, ödəniş] }
+      - { term: banking, weight: 2, aliases: [банковский, банковская, банк, банківський, bank] }
+      - { term: backend, weight: 1, aliases: [back-end, backend developer, бэкенд, бекенд, бэкэнд, бекенд-розробник] }
+      - { term: developer, weight: 1, aliases: [разработчик, программист, розробник, proqramçı, proqramist] }
     exclude:
       # seniority I am not targeting
       - principal
@@ -30,6 +40,8 @@ jobradar:
       - onsite
       - on-site
       - hybrid
+      - гибридный
+      - гібридний
       # location restrictions that rule me out
       - us only
       - usa only

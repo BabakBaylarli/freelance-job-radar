@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Заказы на FL.ru (Фри-ланс: Программирование)</title>
+    <link>https://www.fl.ru</link>
+    <item>
+      <title><![CDATA[Доработка Java-сервиса оплаты (Бюджет: 45 000  &#8381;)]]></title>
+      <link>https://fl.example/projects/5530732/dorabotka-java-servisa-oplaty.html</link>
+      <description><![CDATA[Нужно доработать сервис платежей на Spring Boot.
+Интеграция с Kafka.]]></description>
+      <guid>https://fl.example/projects/5530732/dorabotka-java-servisa-oplaty.html</guid>
+      <category><![CDATA[Программирование / Java]]></category>
+      <pubDate>Fri, 27 Nov 2026 08:07:34 GMT</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Бот в телеграм ]]></title>
+      <link>https://fl.example/projects/5530718/bot-v-telegram-.html</link>
+      <description><![CDATA[Бот для бронирования.]]></description>
+      <guid>https://fl.example/projects/5530718/bot-v-telegram-.html</guid>
+      <category><![CDATA[Программирование / Разработка Чат-ботов]]></category>
+      <pubDate>Fri, 27 Nov 2026 06:03:44 GMT</pubDate>
+    </item>
+    <item>
+      <title><![CDATA[Backend API for startup (Бюджет: 1 200 $)]]></title>
+      <link>https://fl.example/projects/5530700/backend-api.html</link>
+      <description><![CDATA[REST API.]]></description>
+      <category><![CDATA[Программирование / Java]]></category>
+      <pubDate>Thu, 26 Nov 2026 20:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

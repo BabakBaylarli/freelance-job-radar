@@ -13,8 +13,8 @@ class KeywordScorerTest {
 
     private final KeywordScorer scorer = new KeywordScorer(TestSupport.matching(
             4,
-            List.of(new Keyword("java", 3), new Keyword("spring", 3), new Keyword("spring boot", 1),
-                    new Keyword("kafka", 2), new Keyword("c++", 1), new Keyword("fintech", 2)),
+            List.of(Keyword.of("java", 3), Keyword.of("spring", 3), Keyword.of("spring boot", 1),
+                    Keyword.of("kafka", 2), Keyword.of("c++", 1), Keyword.of("fintech", 2)),
             List.of("onsite", "us only")));
 
     private static Job job(String title, List<String> tags, String description) {
@@ -88,5 +88,80 @@ class KeywordScorerTest {
         KeywordScorer empty = new KeywordScorer(TestSupport.matching(1, List.of(), List.of()));
 
         assertThat(empty.score(job("Java", List.of(), "")).matched()).isFalse();
+    }
+
+    // ---- aliases (multi-language keywords) and minimum budget -------------------------------------------------
+
+    private static Job project(String title, String description, com.babakbaylarli.jobradar.source.Budget budget) {
+        return new Job("flru", "1", title, "", "https://x.test/p", List.of(), description, null, Instant.EPOCH,
+                com.babakbaylarli.jobradar.source.Market.RU, com.babakbaylarli.jobradar.source.JobType.FREELANCE_PROJECT, budget);
+    }
+
+    @Test
+    void aliasesCountAsTheSameKeywordAndAreReportedByTheirCanonicalName() {
+        KeywordScorer aliased = new KeywordScorer(TestSupport.matching(3,
+                List.of(Keyword.of("backend", 3, "бэкенд", "бекенд", "proqramçı backend")), List.of()));
+
+        assertThat(aliased.score(job("Нужен бэкенд разработчик", List.of(), "")).matchedKeywords()).containsExactly("backend");
+        assertThat(aliased.score(job("Ищем БЕКЕНД-программиста", List.of(), "")).matchedKeywords()).containsExactly("backend");
+        assertThat(aliased.score(job("Backend developer", List.of(), "")).matchedKeywords()).containsExactly("backend");
+    }
+
+    @Test
+    void anAliasAndTheTermTogetherStillCountOnce() {
+        KeywordScorer aliased = new KeywordScorer(TestSupport.matching(1, List.of(Keyword.of("backend", 3, "бэкенд")), List.of()));
+
+        assertThat(aliased.score(job("backend / бэкенд", List.of(), "backend бэкенд")).score()).isEqualTo(3);
+    }
+
+    @Test
+    void aliasesRespectWordBoundariesInCyrillicToo() {
+        KeywordScorer aliased = new KeywordScorer(TestSupport.matching(1, List.of(Keyword.of("java", 3, "ява")), List.of()));
+
+        assertThat(aliased.score(job("Програмист на яву", List.of(), "")).score()).isZero();
+        assertThat(aliased.score(job("Программист ява", List.of(), "")).score()).isEqualTo(3);
+        assertThat(aliased.score(job("Яванский кофе", List.of(), "")).score()).isZero(); // "ява" inside a longer word
+    }
+
+    private KeywordScorer withMinBudget() {
+        var base = TestSupport.matching(1, List.of(Keyword.of("java", 3)), List.of());
+        var matching = new com.babakbaylarli.jobradar.config.JobRadarProperties.Matching(base.include(), base.exclude(), base.minScore(),
+                base.notifyMaxAge(), java.util.Map.of("USD", new java.math.BigDecimal("500"), "rub", new java.math.BigDecimal("30000")));
+        return new KeywordScorer(matching);
+    }
+
+    @Test
+    void freelanceProjectsBelowTheMinimumBudgetOfTheirCurrencyAreVetoed() {
+        KeywordScorer scorer = withMinBudget();
+
+        ScoreResult cheap = scorer.score(project("Java task", "", com.babakbaylarli.jobradar.source.Budget.of(100, 300, "USD", false)));
+        ScoreResult enough = scorer.score(project("Java task", "", com.babakbaylarli.jobradar.source.Budget.of(100, 800, "USD", false)));
+
+        assertThat(cheap.matched()).isFalse();
+        assertThat(cheap.excludedBy()).isEqualTo("budget below 500 USD");
+        assertThat(cheap.score()).isEqualTo(3); // the reason stays visible
+        assertThat(enough.matched()).isTrue();
+    }
+
+    @Test
+    void budgetRuleIsPerCurrencyAndCaseInsensitive() {
+        KeywordScorer scorer = withMinBudget();
+
+        assertThat(scorer.score(project("Java task", "", com.babakbaylarli.jobradar.source.Budget.of(10000, null, "RUB", false))).excludedBy())
+                .isEqualTo("budget below 30000 RUB");
+        assertThat(scorer.score(project("Java task", "", com.babakbaylarli.jobradar.source.Budget.of(10, null, "EUR", false))).matched())
+                .isTrue(); // no minimum configured for EUR
+    }
+
+    @Test
+    void budgetRuleIgnoresHourlyRatesUnknownBudgetsAndNonProjects() {
+        KeywordScorer scorer = withMinBudget();
+
+        assertThat(scorer.score(project("Java task", "", com.babakbaylarli.jobradar.source.Budget.of(5, 10, "USD", true))).matched()).isTrue();
+        assertThat(scorer.score(project("Java task", "", null)).matched()).isTrue();
+        Job salaried = new Job("hh", "1", "Java dev", "", "https://x.test/v", List.of(), "", null, Instant.EPOCH,
+                com.babakbaylarli.jobradar.source.Market.RU, com.babakbaylarli.jobradar.source.JobType.VACANCY,
+                com.babakbaylarli.jobradar.source.Budget.of(100, 200, "USD", false));
+        assertThat(scorer.score(salaried).matched()).isTrue(); // only freelance projects are subject to the minimum
     }
 }

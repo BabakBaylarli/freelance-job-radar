@@ -9,6 +9,8 @@ import com.babakbaylarli.jobradar.persistence.SourceStateEntity;
 import com.babakbaylarli.jobradar.persistence.SourceStateRepository;
 import com.babakbaylarli.jobradar.persistence.UserStatus;
 import com.babakbaylarli.jobradar.source.JobSource;
+import com.babakbaylarli.jobradar.source.Market;
+import com.babakbaylarli.jobradar.source.SourceCatalog;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -45,13 +47,14 @@ public class BotUpdateHandler {
     private final ProposalService proposals;
     private final MessageFormatter formatter;
     private final List<JobSource> sources;
+    private final SourceCatalog catalog;
     private final Clock clock;
     private final ExecutorService async = Executors.newVirtualThreadPerTaskExecutor();
     private final Set<Long> drafting = ConcurrentHashMap.newKeySet();
 
     public BotUpdateHandler(TelegramGateway gateway, JobRadarProperties properties, JobRepository jobs,
             SourceStateRepository sourceStates, BotStateService state, NotificationService notifications,
-            ProposalService proposals, MessageFormatter formatter, List<JobSource> sources, Clock clock) {
+            ProposalService proposals, MessageFormatter formatter, List<JobSource> sources, SourceCatalog catalog, Clock clock) {
         this.gateway = gateway;
         this.properties = properties;
         this.jobs = jobs;
@@ -61,6 +64,7 @@ public class BotUpdateHandler {
         this.proposals = proposals;
         this.formatter = formatter;
         this.sources = sources;
+        this.catalog = catalog;
         this.clock = clock;
     }
 
@@ -86,6 +90,11 @@ public class BotUpdateHandler {
             case "/keywords" -> reply(chatId, formatter.keywords(properties, sources.stream().map(JobSource::displayName).toList()));
             case "/saved" -> reply(chatId, formatter.saved(jobs.findByUserStatusOrderByIdDesc(UserStatus.SAVED, PageRequest.of(0, SAVED_LIMIT))));
             case "/stats" -> reply(chatId, stats());
+            case "/sources" -> reply(chatId, sources());
+            case "/markets" -> {
+                Set<Market> enabled = state.enabledMarkets();
+                gateway.sendHtml(chatId, formatter.markets(enabled), formatter.marketsKeyboard(enabled));
+            }
             case "/pause" -> {
                 state.setPaused(true);
                 reply(chatId, "⏸ Notifications paused. I keep collecting jobs; send /resume to continue or /digest to peek.");
@@ -111,6 +120,10 @@ public class BotUpdateHandler {
             return;
         }
         String[] parts = data == null ? new String[0] : data.split(":", 2);
+        if (parts.length == 2 && MessageFormatter.MARKET.equals(parts[0])) {
+            toggleMarket(chatId, messageId, callbackId, parts[1]);
+            return;
+        }
         Long jobId = parts.length == 2 ? parseId(parts[1]) : null;
         JobEntity job = jobId == null ? null : jobs.findById(jobId).orElse(null);
         if (job == null) {
@@ -153,6 +166,28 @@ public class BotUpdateHandler {
             return false;
         }
         return true;
+    }
+
+    private void toggleMarket(long chatId, int messageId, String callbackId, String name) {
+        Market market;
+        try {
+            market = Market.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            gateway.answerCallback(callbackId, "Unknown market");
+            return;
+        }
+        Set<Market> enabled = state.toggleMarket(market);
+        gateway.answerCallback(callbackId, market.flag() + " " + market.label() + ": " + (enabled.contains(market) ? "on" : "off"));
+        gateway.editKeyboard(chatId, messageId, formatter.marketsKeyboard(enabled));
+    }
+
+    private String sources() {
+        Map<String, SourceStateEntity> states = sourceStates.findAll().stream()
+                .collect(Collectors.toMap(SourceStateEntity::getSource, Function.identity()));
+        var since = clock.instant().minus(Duration.ofHours(24));
+        Map<String, Long> counts = new java.util.HashMap<>();
+        catalog.entries().forEach(e -> counts.put(e.id(), jobs.countFromSourceSince(e.id(), since)));
+        return formatter.sources(catalog.entries(), states, counts, clock.instant());
     }
 
     private void draft(long chatId, String callbackId, JobEntity job) {
@@ -198,7 +233,8 @@ public class BotUpdateHandler {
         Map<String, SourceStateEntity> states = sourceStates.findAll().stream()
                 .collect(Collectors.toMap(SourceStateEntity::getSource, Function.identity()));
         var since = clock.instant().minus(Duration.ofDays(7));
-        return formatter.stats(sources.stream().map(JobSource::id).toList(), jobs.statsSince(since), states, clock.instant());
+        return formatter.stats(sources.stream().map(JobSource::id).toList(), jobs.statsSince(since), jobs.marketStatsSince(since),
+                states, clock.instant());
     }
 
     private void reply(long chatId, String html) {

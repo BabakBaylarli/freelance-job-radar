@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Вакансії в категорії Java віддалено на DOU.ua</title>
+<link>https://jobs.dou.example/vacancies/</link><description/>
+<item><title>Senior Java Developer (Part-time) в Example Software, Львів, віддалено</title>
+<link>https://jobs.dou.example/companies/example-software/vacancies/381243/?utm_source=jobsrss</link>
+<description>&lt;p&gt;Build &lt;b&gt;Spring Boot&lt;/b&gt; services for payments.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Kafka&lt;/li&gt;&lt;li&gt;PostgreSQL&lt;/li&gt;&lt;/ul&gt;</description>
+<pubDate>Thu, 26 Nov 2026 14:14:22 +0200</pubDate></item>
+<item><title>Technical Writer, віддалено</title>
+<link>https://jobs.dou.example/companies/acme/vacancies/381244/?utm_source=jobsrss</link>
+<description>&lt;p&gt;Write docs.&lt;/p&gt;</description>
+<pubDate>Wed, 25 Nov 2026 10:00:00 +0200</pubDate></item>
+</channel></rss>

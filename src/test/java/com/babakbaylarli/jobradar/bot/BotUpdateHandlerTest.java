@@ -55,7 +55,7 @@ class BotUpdateHandlerTest {
         JobRadarProperties props = new JobRadarProperties(new JobRadarProperties.Telegram("token", owner), base.ai(), base.matching(),
                 base.notifications(), base.http(), base.sources(), base.profilePath());
         return new BotUpdateHandler(gateway, props, jobs, sourceStates, state, notifications, proposals, new MessageFormatter(),
-                List.of(remotive), Clock.fixed(Instant.parse("2026-11-27T10:00:00Z"), ZoneOffset.UTC));
+                List.of(remotive), new com.babakbaylarli.jobradar.source.SourceCatalog(List.of(remotive)), Clock.fixed(Instant.parse("2026-11-27T10:00:00Z"), ZoneOffset.UTC));
     }
 
     private JobEntity storedJob(long id, Delivery delivery) {
@@ -263,5 +263,65 @@ class BotUpdateHandlerTest {
         handler.onCallback(OWNER, 1, "cb", "d:5");
 
         await().untilAsserted(() -> assertThat(gateway.texts()).singleElement().satisfies(t -> assertThat(t).contains("try again")));
+    }
+
+    // ---- /markets and /sources ----------------------------------------------------------------------------------
+
+    @Test
+    void marketsShowsToggleButtonsForEveryMarket() {
+        when(state.enabledMarkets()).thenReturn(java.util.EnumSet.of(com.babakbaylarli.jobradar.source.Market.INTERNATIONAL, com.babakbaylarli.jobradar.source.Market.AZ));
+
+        handler.onMessage(OWNER, "/markets");
+
+        assertThat(gateway.sent).hasSize(1);
+        var keyboard = gateway.sent.get(0).keyboard();
+        assertThat(keyboard.rows()).hasSize(4);
+        assertThat(keyboard.rows().get(0).get(0)).isEqualTo(new Button("✅ 🌍 International", "m:INTERNATIONAL"));
+        assertThat(keyboard.rows().get(1).get(0)).isEqualTo(new Button("⬜ 🇷🇺 Russia", "m:RU"));
+        assertThat(keyboard.rows().get(3).get(0).text()).startsWith("✅ 🇦🇿");
+    }
+
+    @Test
+    void pressingAMarketButtonTogglesItAndRefreshesTheKeyboard() {
+        when(state.toggleMarket(com.babakbaylarli.jobradar.source.Market.RU)).thenReturn(java.util.EnumSet.of(
+                com.babakbaylarli.jobradar.source.Market.INTERNATIONAL, com.babakbaylarli.jobradar.source.Market.RU));
+
+        handler.onCallback(OWNER, 55, "cb", "m:RU");
+
+        verify(state).toggleMarket(com.babakbaylarli.jobradar.source.Market.RU);
+        assertThat(gateway.answers).containsExactly("🇷🇺 Russia: on");
+        assertThat(gateway.edits).singleElement().satisfies(e -> {
+            assertThat(e.messageId()).isEqualTo(55);
+            assertThat(e.keyboard().rows().get(1).get(0).text()).isEqualTo("✅ 🇷🇺 Russia");
+        });
+    }
+
+    @Test
+    void unknownMarketButtonIsIgnored() {
+        handler.onCallback(OWNER, 1, "cb", "m:MARS");
+
+        assertThat(gateway.answers).containsExactly("Unknown market");
+        verify(state, never()).toggleMarket(any());
+    }
+
+    @Test
+    void strangersCannotToggleMarkets() {
+        handler.onCallback(STRANGER, 1, "cb", "m:RU");
+
+        assertThat(gateway.answers).containsExactly("Private bot");
+        verify(state, never()).toggleMarket(any());
+    }
+
+    @Test
+    void sourcesListsEveryKnownSourceWithItsState() {
+        when(sourceStates.findAll()).thenReturn(List.of());
+        when(jobs.countFromSourceSince(any(), any())).thenReturn(0L);
+        when(jobs.countFromSourceSince(org.mockito.ArgumentMatchers.eq("remotive"), any())).thenReturn(7L);
+
+        handler.onMessage(OWNER, "/sources");
+
+        assertThat(gateway.texts()).singleElement().satisfies(text -> assertThat(text)
+                .contains("<b>Remotive</b> — 🟢 on · not polled yet").contains("jobs in last 24h: 7")
+                .contains("<b>hh.ru</b> — ⚪ off").contains("<b>Telegram channels</b> — ⚪ off"));
     }
 }

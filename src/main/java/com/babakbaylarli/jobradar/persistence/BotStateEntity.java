@@ -5,6 +5,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** The single row holding the bot's runtime state ({@code /pause}, last digest time). */
 @Entity
@@ -22,7 +26,13 @@ public class BotStateEntity {
     @Column(name = "last_digest_at")
     private Instant lastDigestAt;
 
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "disabled_markets", columnDefinition = "text[]", nullable = false)
+    private List<String> disabledMarkets = new ArrayList<>();
+
     protected BotStateEntity() {}
+
+    public List<String> getDisabledMarkets() { return disabledMarkets; }
 
     public boolean isPaused() { return paused; }
     public void setPaused(boolean paused) { this.paused = paused; }

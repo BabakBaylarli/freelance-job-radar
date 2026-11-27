@@ -8,7 +8,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.babakbaylarli.jobradar.source.Budget;
 import com.babakbaylarli.jobradar.source.Job;
+import com.babakbaylarli.jobradar.source.JobType;
+import com.babakbaylarli.jobradar.source.Market;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +81,33 @@ public class JobEntity {
     @Column(name = "notified_at")
     private Instant notifiedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Market market = Market.INTERNATIONAL;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "job_type", nullable = false)
+    private JobType jobType = JobType.REMOTE_JOB;
+
+    @Column(name = "budget_min")
+    private BigDecimal budgetMin;
+
+    @Column(name = "budget_max")
+    private BigDecimal budgetMax;
+
+    private String currency;
+
+    @Column(nullable = false)
+    private boolean hourly;
+
+    @Column(name = "dedup_key", columnDefinition = "text")
+    private String dedupKey;
+
+    /** Other places this same job was seen, as "source|url". */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "also_on", columnDefinition = "text[]", nullable = false)
+    private List<String> alsoOn = new ArrayList<>();
+
     protected JobEntity() {}
 
     public JobEntity(String source, String externalId, String url, String title, String company, List<String> tags,
@@ -97,6 +128,23 @@ public class JobEntity {
         this.excludedBy = excludedBy;
         this.matched = matched;
         this.delivery = delivery;
+    }
+
+    /** Full constructor for jobs coming from the ingest pipeline. */
+    public JobEntity(Job job, String normalizedUrl, Instant firstSeenAt, int score, List<String> matchedKeywords,
+            String excludedBy, boolean matched, Delivery delivery, String dedupKey) {
+        this(job.source(), job.externalId(), normalizedUrl, job.title(), job.company(), job.tags(), job.description(),
+                job.salary(), job.postedAt(), firstSeenAt, score, matchedKeywords, excludedBy, matched, delivery);
+        this.market = job.market();
+        this.jobType = job.type();
+        Budget budget = job.budget();
+        if (budget != null) {
+            this.budgetMin = budget.min();
+            this.budgetMax = budget.max();
+            this.currency = budget.currency();
+            this.hourly = budget.hourly();
+        }
+        this.dedupKey = dedupKey;
     }
 
     public Long getId() { return id; }
@@ -120,7 +168,22 @@ public class JobEntity {
 
     /** The normalized view of this job, as handed to the AI prompt builder. */
     public Job toJob() {
-        return new Job(source, externalId, title, company, url, tags, description, salary, postedAt);
+        Budget budget = budgetMin == null && budgetMax == null ? null : new Budget(budgetMin, budgetMax, currency, hourly);
+        return new Job(source, externalId, title, company, url, tags, description, salary, postedAt, market, jobType, budget);
+    }
+
+    public Market getMarket() { return market; }
+    public JobType getJobType() { return jobType; }
+    public String getDedupKey() { return dedupKey; }
+    public List<String> getAlsoOn() { return alsoOn; }
+    public String getCurrency() { return currency; }
+
+    /** Remember another place where this same job was posted. */
+    public void addAlsoOn(String source, String url) {
+        String entry = source + "|" + url;
+        if (!alsoOn.contains(entry) && !url.equals(this.url)) {
+            alsoOn.add(entry);
+        }
     }
 
     public void markSent(Delivery how, Instant when) {

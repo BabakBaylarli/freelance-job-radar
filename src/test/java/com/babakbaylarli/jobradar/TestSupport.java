@@ -36,7 +36,7 @@ public final class TestSupport {
     }
 
     public static Matching matching(int minScore, List<Keyword> include, List<String> exclude) {
-        return new Matching(include, exclude, minScore, Duration.ofDays(7));
+        return new Matching(include, exclude, minScore, Duration.ofDays(7), java.util.Map.of());
     }
 
     /** Properties pointing every source at {@code baseUrl}, with millisecond backoff so retry tests are fast. */
@@ -45,6 +45,35 @@ public final class TestSupport {
     }
 
     public static JobRadarProperties props(String baseUrl, boolean hnRemoteOnly) {
+        return props(baseUrl, hnRemoteOnly, true);
+    }
+
+    /** Copy of {@code base} with different e-mail alert settings. */
+    public static JobRadarProperties withEmailAlerts(JobRadarProperties base, JobRadarProperties.EmailAlerts email) {
+        JobRadarProperties.Sources s = base.sources();
+        return new JobRadarProperties(base.telegram(), base.ai(), base.matching(), base.notifications(), base.http(),
+                new Sources(s.weWorkRemotely(), s.remotive(), s.remoteOk(), s.hackerNews(), s.freelancer(), s.himalayas(), s.jobicy(), s.workingNomads(),
+                        s.flRu(), s.hh(), s.freelancehunt(), s.dou(), email, s.telegramChannels()), base.profilePath());
+    }
+
+    /** Parse a saved sample e-mail from {@code src/test/resources/emails}. */
+    public static jakarta.mail.internet.MimeMessage sampleMail(String name) {
+        try (InputStream in = TestSupport.class.getResourceAsStream("/emails/" + name + ".eml")) {
+            if (in == null) {
+                throw new IllegalArgumentException("Missing sample e-mail " + name);
+            }
+            return new jakarta.mail.internet.MimeMessage(jakarta.mail.Session.getInstance(new java.util.Properties()), in);
+        } catch (IOException | jakarta.mail.MessagingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Same, but without any token / contact e-mail configured. */
+    public static JobRadarProperties propsWithoutSecrets(String baseUrl) {
+        return props(baseUrl, true, false);
+    }
+
+    private static JobRadarProperties props(String baseUrl, boolean hnRemoteOnly, boolean secrets) {
         return new JobRadarProperties(
                 new Telegram("", null),
                 new Ai("", "claude-sonnet-5-5", null, 2000, "medium", Duration.ofSeconds(30)),
@@ -55,7 +84,17 @@ public final class TestSupport {
                         new WeWorkRemotely(true, Duration.ofHours(3), baseUrl, List.of("/feed-a.rss", "/feed-b.rss")),
                         new Remotive(true, Duration.ofHours(6), baseUrl, "software-dev"),
                         new RemoteOk(true, Duration.ofHours(6), baseUrl),
-                        new HackerNews(true, Duration.ofHours(6), baseUrl, hnRemoteOnly)),
+                        new HackerNews(true, Duration.ofHours(6), baseUrl, hnRemoteOnly),
+                        new JobRadarProperties.Freelancer(true, Duration.ofHours(6), baseUrl, secrets ? "fl-token" : null, List.of("java"), 30),
+                        new JobRadarProperties.Himalayas(true, Duration.ofHours(6), baseUrl, secrets ? "him-key" : null, List.of("java")),
+                        new JobRadarProperties.Jobicy(true, Duration.ofHours(6), baseUrl, List.of("java"), 50),
+                        new JobRadarProperties.WorkingNomads(true, Duration.ofHours(6), baseUrl),
+                        new JobRadarProperties.FlRu(true, Duration.ofHours(3), baseUrl, List.of("/rss/all.xml?category=5")),
+                        new JobRadarProperties.Hh(true, Duration.ofHours(6), baseUrl, secrets ? "me@example.org" : null, List.of("java"), "REMOTE", List.of("PROJECT", "PART"), 50),
+                        new JobRadarProperties.Freelancehunt(true, Duration.ofHours(3), baseUrl, secrets ? "fh-token" : null, List.of()),
+                        new JobRadarProperties.Dou(true, Duration.ofHours(6), baseUrl, List.of("Java"), true),
+                        new JobRadarProperties.EmailAlerts(false, Duration.ofMinutes(15), "localhost", 993, true, null, null, "JobAlerts", 30),
+                        new JobRadarProperties.TelegramChannels(false, Duration.ofMinutes(30), null, null, null, "/tmp/tdlight", List.of(), 50)),
                 "config/profile.md");
     }
 }

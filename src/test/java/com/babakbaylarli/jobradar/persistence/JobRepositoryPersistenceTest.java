@@ -3,7 +3,9 @@ package com.babakbaylarli.jobradar.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.babakbaylarli.jobradar.source.Market;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -94,11 +96,11 @@ class JobRepositoryPersistenceTest {
         jobs.save(hidden);
         jobs.save(job("remotive", "q4", "https://x.test/q4", 7, true, Delivery.SENT_LIVE));
 
-        List<JobEntity> queue = jobs.findByDeliveryInAndUserStatusOrderByScoreDescIdDesc(
-                List.of(Delivery.PENDING, Delivery.DEFERRED), UserStatus.NONE, PageRequest.of(0, 10));
+        List<JobEntity> queue = jobs.findByDeliveryInAndUserStatusAndMarketInOrderByScoreDescIdDesc(
+                List.of(Delivery.PENDING, Delivery.DEFERRED), UserStatus.NONE, EnumSet.allOf(Market.class), PageRequest.of(0, 10));
 
         assertThat(queue).extracting(JobEntity::getExternalId).containsExactly("q2", "q1");
-        assertThat(jobs.countByDeliveryAndUserStatus(Delivery.DEFERRED, UserStatus.NONE)).isEqualTo(1);
+        assertThat(jobs.countByDeliveryAndUserStatusAndMarketIn(Delivery.DEFERRED, UserStatus.NONE, EnumSet.allOf(Market.class))).isEqualTo(1);
     }
 
     @Test
@@ -162,5 +164,75 @@ class JobRepositoryPersistenceTest {
         assertThat(found.getLastStatus()).isEqualTo("FAILED");
         assertThat(found.getLastError()).isEqualTo("HTTP 503");
         assertThat(found.getLastPolledAt()).isEqualTo(NOW);
+    }
+
+    private JobEntity entityOf(String source, String externalId, Market market, String title, String dedupKey, Instant firstSeen, int score) {
+        com.babakbaylarli.jobradar.source.Job job = new com.babakbaylarli.jobradar.source.Job(source, externalId, title, "Acme", "https://x.test/" + source + externalId,
+                List.of("java"), "desc", null, firstSeen, market, com.babakbaylarli.jobradar.source.JobType.FREELANCE_PROJECT,
+                com.babakbaylarli.jobradar.source.Budget.of(500, 1500, "USD", false));
+        return new JobEntity(job, job.url(), firstSeen, score, List.of("java"), null, true, Delivery.PENDING, dedupKey);
+    }
+
+    @Test
+    void marketTypeBudgetAndOtherPlatformsRoundTrip() {
+        JobEntity saved = entityOf("freelancer", "f1", Market.UA, "Spring service", "spring service|acme", NOW, 7);
+        saved.addAlsoOn("freelancehunt", "https://fh.test/9");
+        saved.addAlsoOn("freelancehunt", "https://fh.test/9"); // adding twice does not duplicate
+        jobs.saveAndFlush(saved);
+
+        JobEntity found = jobs.findById(saved.getId()).orElseThrow();
+        assertThat(found.getMarket()).isEqualTo(Market.UA);
+        assertThat(found.getJobType()).isEqualTo(com.babakbaylarli.jobradar.source.JobType.FREELANCE_PROJECT);
+        assertThat(found.getAlsoOn()).containsExactly("freelancehunt|https://fh.test/9");
+        assertThat(found.toJob().budget().display()).isEqualTo("500 - 1,500 USD");
+        assertThat(found.getDedupKey()).isEqualTo("spring service|acme");
+    }
+
+    @Test
+    void crossSourceLookupFindsTheEarliestJobWithinTheWindowOnly() {
+        JobEntity first = jobs.save(entityOf("remotive", "a", Market.INTERNATIONAL, "Same posting", "same posting|acme", NOW.minusSeconds(3600), 5));
+        jobs.save(entityOf("remoteok", "b", Market.INTERNATIONAL, "Same posting", "same posting|acme", NOW, 5));
+        jobs.save(entityOf("remotive", "old", Market.INTERNATIONAL, "Old posting", "old posting|acme", NOW.minusSeconds(10L * 24 * 3600), 5));
+
+        assertThat(jobs.findFirstByDedupKeyAndFirstSeenAtAfterOrderByIdAsc("same posting|acme", NOW.minusSeconds(3L * 24 * 3600)))
+                .get().extracting(JobEntity::getId).isEqualTo(first.getId());
+        assertThat(jobs.findFirstByDedupKeyAndFirstSeenAtAfterOrderByIdAsc("old posting|acme", NOW.minusSeconds(3L * 24 * 3600))).isEmpty();
+        assertThat(jobs.findFirstByDedupKeyAndFirstSeenAtAfterOrderByIdAsc("missing", NOW.minusSeconds(3600))).isEmpty();
+    }
+
+    @Test
+    void queueOnlyContainsJobsOfTheEnabledMarkets() {
+        jobs.save(entityOf("remotive", "i", Market.INTERNATIONAL, "International job", "k1", NOW, 5));
+        jobs.save(entityOf("flru", "r", Market.RU, "Russian job", "k2", NOW, 9));
+
+        List<JobEntity> withoutRu = jobs.findByDeliveryInAndUserStatusAndMarketInOrderByScoreDescIdDesc(
+                List.of(Delivery.PENDING), UserStatus.NONE, EnumSet.of(Market.INTERNATIONAL, Market.AZ), PageRequest.of(0, 10));
+
+        assertThat(withoutRu).extracting(JobEntity::getExternalId).containsExactly("i");
+        assertThat(jobs.countByDeliveryAndUserStatusAndMarketIn(Delivery.PENDING, UserStatus.NONE, EnumSet.of(Market.RU))).isEqualTo(1);
+    }
+
+    @Test
+    void marketStatsAndPerSourceCountsIncludeSubSources() {
+        jobs.save(entityOf("email:upwork", "e1", Market.INTERNATIONAL, "Mail job one", "k1", NOW, 5));
+        jobs.save(entityOf("email:djinni", "e2", Market.UA, "Mail job two", "k2", NOW, 5));
+        jobs.save(entityOf("flru", "r1", Market.RU, "Russian job", "k3", NOW, 5));
+
+        assertThat(jobs.countFromSourceSince("email", NOW.minusSeconds(60))).isEqualTo(2);
+        assertThat(jobs.countFromSourceSince("flru", NOW.minusSeconds(60))).isEqualTo(1);
+        assertThat(jobs.countFromSourceSince("fl", NOW.minusSeconds(60))).isZero(); // prefix match requires the ':' separator
+        assertThat(jobs.marketStatsSince(NOW.minusSeconds(60)))
+                .extracting(JobRepository.MarketStats::getMarket, JobRepository.MarketStats::getSeen)
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple(Market.INTERNATIONAL, 1L), org.assertj.core.groups.Tuple.tuple(Market.UA, 1L),
+                        org.assertj.core.groups.Tuple.tuple(Market.RU, 1L));
+    }
+
+    @Test
+    void disabledMarketsArePersistedInTheSingletonBotState() {
+        BotStateEntity state = botState.findById(BotStateEntity.SINGLETON_ID).orElseThrow();
+        state.getDisabledMarkets().add("RU");
+        botState.saveAndFlush(state);
+
+        assertThat(botState.findById(BotStateEntity.SINGLETON_ID).orElseThrow().getDisabledMarkets()).containsExactly("RU");
     }
 }

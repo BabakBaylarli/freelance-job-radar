@@ -306,6 +306,55 @@ class NotificationServiceTest {
         assertThat(service.sendDigestNow()).isZero();
     }
 
+    private JobEntity addIn(String externalId, com.babakbaylarli.jobradar.source.Market market, int score) {
+        com.babakbaylarli.jobradar.source.Job job = new com.babakbaylarli.jobradar.source.Job("flru", externalId, "Job " + externalId, "Acme",
+                "https://x.test/" + externalId, List.of(), "desc", null, DAYTIME, market, com.babakbaylarli.jobradar.source.JobType.FREELANCE_PROJECT, null);
+        return jobs.save(new JobEntity(job, job.url(), DAYTIME, score, List.of("java"), null, true, Delivery.PENDING, null));
+    }
+
+    @Test
+    void jobsOfSwitchedOffMarketsAreHeldBackUntilTheMarketIsSwitchedBackOn() {
+        addIn("ru-job", com.babakbaylarli.jobradar.source.Market.RU, 9);
+        addIn("intl-job", com.babakbaylarli.jobradar.source.Market.INTERNATIONAL, 5);
+        state.recordDigest(DAYTIME.minus(Duration.ofHours(1)));
+        state.toggleMarket(com.babakbaylarli.jobradar.source.Market.RU); // RU off
+
+        service.flush();
+
+        assertThat(gateway.sent).hasSize(1);
+        assertThat(gateway.sent.get(0).html()).contains("Job intl-job").contains("🌍");
+        assertThat(byDelivery(Delivery.PENDING)).extracting(JobEntity::getExternalId).containsExactly("ru-job");
+
+        state.toggleMarket(com.babakbaylarli.jobradar.source.Market.RU); // RU on again
+        service.flush();
+
+        assertThat(gateway.sent).hasSize(2);
+        assertThat(gateway.sent.get(1).html()).contains("Job ru-job").contains("🇷🇺");
+    }
+
+    @Test
+    void digestCommandAlsoRespectsMarkets() {
+        addIn("ru-job", com.babakbaylarli.jobradar.source.Market.RU, 9);
+        state.toggleMarket(com.babakbaylarli.jobradar.source.Market.RU);
+
+        assertThat(service.sendDigestNow()).isZero();
+        assertThat(state.enabledMarkets()).doesNotContain(com.babakbaylarli.jobradar.source.Market.RU);
+    }
+
+    @Test
+    void switchingEveryMarketOffSendsNothing() {
+        addIn("a", com.babakbaylarli.jobradar.source.Market.INTERNATIONAL, 9);
+        for (var market : com.babakbaylarli.jobradar.source.Market.values()) {
+            state.toggleMarket(market);
+        }
+
+        service.flush();
+
+        assertThat(state.enabledMarkets()).isEmpty();
+        assertThat(gateway.sent).isEmpty();
+        assertThat(service.sendDigestNow()).isZero();
+    }
+
     @Test
     void nothingHappensWithoutAGatewayOrOwner() {
         add("one", 6, Delivery.PENDING);
