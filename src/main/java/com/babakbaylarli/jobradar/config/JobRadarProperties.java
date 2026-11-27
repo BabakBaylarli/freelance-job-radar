@@ -196,9 +196,11 @@ public record JobRadarProperties(
     }
 
     /** One public Telegram channel to read, and the market its posts belong to. */
-    public record Channel(String username, Market market) {
+    public record Channel(String username, Market market, com.babakbaylarli.jobradar.source.JobType type) {
         public Channel {
             market = market == null ? Market.INTERNATIONAL : market;
+            type = type == null ? com.babakbaylarli.jobradar.source.JobType.FREELANCE_PROJECT : type;
+            username = username == null ? "" : username.strip().replaceFirst("^@", "");
         }
     }
 

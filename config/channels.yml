@@ -1,0 +1,17 @@
+# Public Telegram channels to read for jobs (RU / UA / AZ freelance channels).
+# Used only when TELEGRAM_CHANNELS_ENABLED=true and TELEGRAM_API_ID / TELEGRAM_API_HASH / TELEGRAM_PHONE are set
+# and you have done the one-time login:  docker compose run --rm -it app --telegram-login
+#
+# The bot only READS these channels' posts with your own account. It never joins, posts or messages anyone.
+# Fill in real channel usernames yourself - none are pre-filled on purpose.
+#
+# Format (uncomment and edit):
+#   channels:
+#     - { username: some_public_channel, market: RU, type: FREELANCE_PROJECT }
+#     - { username: another_channel,     market: UA, type: VACANCY }
+#     - { username: azerbaijan_jobs,     market: AZ, type: VACANCY }
+#   market: INTERNATIONAL | RU | UA | AZ      type: FREELANCE_PROJECT | REMOTE_JOB | VACANCY
+jobradar:
+  sources:
+    telegram-channels:
+      channels: []

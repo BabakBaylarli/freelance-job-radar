@@ -1,11 +1,11 @@
 package com.babakbaylarli.jobradar.source.email;
 
 import com.babakbaylarli.jobradar.source.Budget;
+import com.babakbaylarli.jobradar.source.BudgetText;
 import com.babakbaylarli.jobradar.source.HtmlText;
 import com.babakbaylarli.jobradar.source.Job;
 import com.babakbaylarli.jobradar.source.JobType;
 import com.babakbaylarli.jobradar.source.Market;
-import java.math.BigDecimal;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -37,9 +37,6 @@ public final class LinkListAlertParser implements AlertParser {
 
     private static final Set<String> GENERIC_LINK_TEXT = Set.of("view job", "view", "apply", "apply now", "see job", "see details", "view details",
             "view all jobs", "see all jobs", "more jobs", "open", "read more", "посмотреть", "подробнее", "детальніше", "ətraflı");
-    private static final Pattern MONEY_PREFIX = Pattern.compile("(?<cur>[$€£₽₴₼])\\s?(?<a>\\d[\\d,.\\s\\u00a0]*\\d|\\d)(?:\\s*[-–—]\\s*[$€£₽₴₼]?\\s?(?<b>\\d[\\d,.\\s\\u00a0]*\\d|\\d))?");
-    private static final Pattern MONEY_SUFFIX = Pattern.compile("(?<a>\\d[\\d,.\\s\\u00a0]*\\d|\\d)(?:\\s*[-–—]\\s*(?<b>\\d[\\d,.\\s\\u00a0]*\\d|\\d))?\\s*(?<cur>₽|руб\\.?|грн\\.?|₴|₼|AZN|USD|EUR|GBP|RUB|UAH)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern HOURLY = Pattern.compile("(/\\s?h(ou)?r|hourly|per hour|в час|за годину|saatlıq)", Pattern.CASE_INSENSITIVE);
 
     private final Config config;
 
@@ -142,49 +139,12 @@ public final class LinkListAlertParser implements AlertParser {
         return ids.size();
     }
 
-    // ---- budget -------------------------------------------------------------------------------------------------
-
     Budget budget(String text) {
-        boolean hourly = HOURLY.matcher(text).find();
-        Matcher prefix = MONEY_PREFIX.matcher(text);
-        if (prefix.find()) {
-            return Budget.of(amount(prefix.group("a")), amount(prefix.group("b")), currencyOf(prefix.group("cur")), hourly);
-        }
-        Matcher suffix = MONEY_SUFFIX.matcher(text);
-        if (suffix.find()) {
-            return Budget.of(amount(suffix.group("a")), amount(suffix.group("b")), currencyOf(suffix.group("cur")), hourly);
-        }
-        return null;
-    }
-
-    private String currencyOf(String symbol) {
-        String s = symbol.toLowerCase(Locale.ROOT);
-        return switch (s) {
-            case "$" -> "USD";
-            case "€", "eur" -> "EUR";
-            case "£", "gbp" -> "GBP";
-            case "₽", "rub", "руб", "руб." -> "RUB";
-            case "₴", "грн", "грн.", "uah" -> "UAH";
-            case "₼", "azn" -> "AZN";
-            case "usd" -> "USD";
-            default -> config.defaultCurrency();
-        };
-    }
-
-    private static BigDecimal amount(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String digits = raw.replaceAll("[\\s\\u00a0,]", "");
-        try {
-            return digits.isEmpty() ? null : new BigDecimal(digits);
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return BudgetText.parse(text, config.defaultCurrency());
     }
 
     private static boolean looksLikeMoney(String line) {
-        return MONEY_PREFIX.matcher(line).find() || MONEY_SUFFIX.matcher(line).find();
+        return BudgetText.parse(line, null) != null;
     }
 
     private static String clean(String text) {
