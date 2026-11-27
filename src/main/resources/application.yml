@@ -1,0 +1,91 @@
+spring:
+  application:
+    name: freelance-job-radar
+  config:
+    # User-editable matching rules (weights, excludes, threshold). Optional so tests/dev work without it.
+    import: optional:file:./config/keywords.yml
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobradar}
+    username: ${DB_USER:jobradar}
+    password: ${DB_PASSWORD:jobradar}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: freelance-job-radar
+
+logging:
+  level:
+    root: INFO
+    com.babakbaylarli.jobradar: INFO
+    org.hibernate.SQL: WARN
+  # Console format is human readable by default. Docker sets LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash (JSON).
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{source:-main}] %logger{36} - %msg%n"
+
+jobradar:
+  # Secrets come from the environment only - nothing is committed.
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    owner-chat-id: ${TELEGRAM_OWNER_CHAT_ID:}
+  ai:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-sonnet-5-5}
+    effort: medium
+    max-tokens: 2000
+  profile-path: ${PROFILE_PATH:profile.md}
+
+  notifications:
+    max-per-hour: ${NOTIFY_MAX_PER_HOUR:6}
+    digest-size: 10
+    digest-min-interval: PT6H
+    quiet-hours:
+      enabled: ${QUIET_HOURS_ENABLED:true}
+      start: ${QUIET_HOURS_START:00:00}
+      end: ${QUIET_HOURS_END:08:00}
+      zone: ${QUIET_HOURS_ZONE:Asia/Baku}
+
+  # Each source can be switched off and given its own poll interval.
+  # Remotive asks API users not to poll more than a few times a day, so keep it at 6h or more.
+  sources:
+    we-work-remotely:
+      enabled: true
+      poll-interval: PT3H
+    remotive:
+      enabled: true
+      poll-interval: PT6H
+      category: software-dev
+    remote-ok:
+      enabled: true
+      poll-interval: PT6H
+    hacker-news:
+      enabled: true
+      poll-interval: PT6H
+      remote-only: true
