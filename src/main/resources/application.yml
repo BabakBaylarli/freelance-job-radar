@@ -60,7 +60,7 @@ jobradar:
     model: ${ANTHROPIC_MODEL:claude-sonnet-5-5}
     effort: medium
     max-tokens: 2000
-  profile-path: ${PROFILE_PATH:profile.md}
+  profile-path: ${PROFILE_PATH:config/profile.md}
 
   notifications:
     max-per-hour: ${NOTIFY_MAX_PER_HOUR:6}

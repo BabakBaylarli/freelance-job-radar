@@ -1,7 +1,7 @@
 target/
 .git/
+.github/
 .idea/
 .env
-profile.md
-*.md
-!README.md
+config/profile.md
+docs/

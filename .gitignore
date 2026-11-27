@@ -6,4 +6,4 @@ target/
 
 # secrets and personal data - never commit
 .env
-profile.md
+config/profile.md

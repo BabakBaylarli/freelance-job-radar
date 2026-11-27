@@ -16,7 +16,7 @@ public record JobRadarProperties(
         @DefaultValue Notifications notifications,
         @DefaultValue Http http,
         @DefaultValue Sources sources,
-        @DefaultValue("profile.md") String profilePath) {
+        @DefaultValue("config/profile.md") String profilePath) {
 
     public record Telegram(String botToken, Long ownerChatId) {
         public boolean botConfigured() {

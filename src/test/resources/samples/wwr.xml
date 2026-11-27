@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>We Work Remotely: Back-End Programming Jobs</title>
+    <link>https://weworkremotely.com/categories/remote-back-end-programming-jobs</link>
+    <description>Remote Back-End Programming Jobs</description>
+    <item>
+      <title>Northwind Labs: Backend Engineer (Java/Spring)</title>
+      <region>Anywhere in the World</region>
+      <skills>Java, Spring Boot, PostgreSQL</skills>
+      <category>Back-End Programming</category>
+      <type>Full-Time</type>
+      <description><![CDATA[<p>Northwind builds <b>payments</b> APIs.</p><p>You will own Java microservices.</p>]]></description>
+      <pubDate>Wed, 25 Nov 2026 14:03:11 +0000</pubDate>
+      <guid>https://weworkremotely.com/remote-jobs/northwind-labs-backend-engineer-java-spring</guid>
+      <link>https://weworkremotely.com/remote-jobs/northwind-labs-backend-engineer-java-spring</link>
+    </item>
+    <item>
+      <title>Orbit &amp; Co: Senior Ruby Developer</title>
+      <region>USA Only</region>
+      <skills>Ruby, Rails</skills>
+      <category>Back-End Programming</category>
+      <type>Full-Time</type>
+      <description><![CDATA[<p>Rails monolith, <i>on-site</i> kickoff.</p>]]></description>
+      <pubDate>Tue, 24 Nov 2026 09:30:00 +0000</pubDate>
+      <guid>https://weworkremotely.com/remote-jobs/orbit-co-senior-ruby-developer</guid>
+      <link>https://weworkremotely.com/remote-jobs/orbit-co-senior-ruby-developer</link>
+    </item>
+    <item>
+      <title>Untitled without company separator</title>
+      <description><![CDATA[Short]]></description>
+      <pubDate>not a date</pubDate>
+      <link>https://weworkremotely.com/remote-jobs/untitled</link>
+    </item>
+  </channel>
+</rss>
