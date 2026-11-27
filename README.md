@@ -242,6 +242,35 @@ The bot drafts the application; **you** decide. There is no auto-apply, no batch
 
 Settings: [`config/apply.yml`](config/apply.yml) (minimum rates, per-platform limits, portfolio links) and `APPLY_DAILY_LIMIT` in `.env`. For Freelancer bids, `jobradar.apply.freelancer-milestone-percentage` can request an upfront milestone share; it is not sent unless you set it.
 
+## Private access with Tailscale (optional)
+
+The bot does not need any inbound connection: it talks to Telegram by long polling, so you never have to open a port. What
+[Tailscale](https://tailscale.com) adds is a **private way for you to reach the app** when it runs on a server or a home
+machine, for example to check `/actuator/health` from your phone, with nothing exposed to the internet.
+
+1. Install Tailscale on your phone/laptop and sign in (the same account you will use for the server).
+2. In the Tailscale admin console create an **auth key** (Settings → Keys). Prefer a pre-approved, non-reusable key, tagged
+   (for example `tag:job-radar`) if you use tags; then add `TS_EXTRA_ARGS=--advertise-tags=tag:job-radar` to `.env`.
+3. Put it in `.env`: `TS_AUTHKEY=...` (and optionally `TS_HOSTNAME`, default `job-radar`).
+4. Start the add-on next to the normal stack:
+   ```bash
+   docker compose --profile tailscale up -d
+   ```
+5. From any device on your tailnet open `http://job-radar:8080/actuator/health` (MagicDNS on; otherwise use the machine's
+   `100.x` address from the admin console).
+
+How it is wired: a `tailscale` sidecar runs in **userspace mode** (no `/dev/net/tun`, no extra Linux capabilities) and a
+[serve config](deploy/tailscale-serve.json) forwards the tailnet's TCP port 8080 to `app:8080`. The app's own port stays
+bound to `127.0.0.1` on the host, the database is not published at all, and the app only exposes the `health` and `info`
+actuator endpoints. Who on your tailnet may connect is controlled by your Tailscale access rules. The node state lives in the
+`tailscale-state` volume, so after the first start you can remove `TS_AUTHKEY` from `.env`. Without a key the container prints
+a login link in `docker compose logs tailscale` instead.
+
+Not part of this setup: SSH access to the server (install Tailscale on the host itself for that) and anything for the Telegram
+bot itself, which works without it. The profile is off by default and the default stack never needs any `TS_*` variable (a test
+guards this). Validated with `docker compose config` and the tests; not joined to a real tailnet from the development sandbox,
+so check the first start with `docker compose logs tailscale`.
+
 ## Keywords, aliases, markets and budgets
 
 [`config/keywords.yml`](config/keywords.yml) is mounted into the container (restart the app after editing):
@@ -377,6 +406,7 @@ src/main/java/com/babakbaylarli/jobradar/
 | One-tap apply: state machine (draft → edit → confirm → send), `ok` reply handling, limits, duplicate protection, retry/copy fallbacks | JUnit + Testcontainers PostgreSQL with fake senders; bot handler with a mocked service |
 | Senders: Freelancer bid (payload, no retry, errors), e-mail (real SMTP protocol, attachment), Telegram DM (contact rules) | WireMock, GreenMail, fake messenger |
 | "Nothing sends automatically" | tripwire tests that scan the sources for any other path to a sender |
+| Compose file stays private and simple (Tailscale is opt-in, nothing public) | parses `docker-compose.yml` |
 | Whole app boots with no keys at all, with every default source on, health is `UP`; feed → scoring → Postgres | `@SpringBootTest` + Testcontainers + WireMock |
 
 What the tests do **not** cover, honestly: sending to the real platforms (the Freelancer.com bid, SMTP to a real mailbox, a real Telegram message) was only exercised against recorded protocol behaviour and test servers, never with a real account. the sample payloads and e-mails are written to follow each source's real format (every JSON/RSS adapter except hh.ru was additionally run once against the live feed on 2026-11-27 and parsed it), but the e-mail parsers have only seen synthetic e-mails, hh.ru needs your registered contact address to answer at all, and the TDLight channel reader needs a real Telegram login, so it is tested through its interface and its pure helpers only.
