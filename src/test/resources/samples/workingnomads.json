@@ -1,0 +1,6 @@
+[
+ {"url":"https://workingnomads.example/job/go/2049641/","title":"Senior Java Developer","description":"<p><strong>About the Role</strong></p><p>Build Spring Boot services.</p>",
+  "company_name":"Example Labs","category_name":"Development","tags":"java,spring,kafka","location":"Europe, Latin America","pub_date":"2026-11-25T09:36:50-05:00"},
+ {"url":"https://workingnomads.example/job/go/2049642/","title":"Community Manager","description":"<p>Talk to people.</p>","company_name":"Acme",
+  "category_name":"Marketing","tags":"","location":"Anywhere","pub_date":"not-a-date"}
+]

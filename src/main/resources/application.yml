@@ -3,7 +3,7 @@ spring:
     name: freelance-job-radar
   config:
     # User-editable matching rules (weights, excludes, threshold). Optional so tests/dev work without it.
-    import: optional:file:./config/keywords.yml
+    import: optional:file:./config/keywords.yml,optional:file:./config/channels.yml
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/jobradar}
     username: ${DB_USER:jobradar}
@@ -74,6 +74,7 @@ jobradar:
 
   # Each source can be switched off and given its own poll interval.
   # Remotive asks API users not to poll more than a few times a day, so keep it at 6h or more.
+  # A source that needs a token/e-mail which is not set is skipped with one warning (see /sources in the bot).
   sources:
     we-work-remotely:
       enabled: true
@@ -89,3 +90,55 @@ jobradar:
       enabled: true
       poll-interval: PT6H
       remote-only: true
+    freelancer:                       # Freelancer.com Projects API; token is optional
+      enabled: true
+      poll-interval: PT6H
+      token: ${FREELANCER_TOKEN:}
+      queries: [java, spring boot]
+    himalayas:                        # anonymous use is rate limited: keep few queries; key is optional
+      enabled: true
+      poll-interval: PT6H
+      token: ${HIMALAYAS_API_KEY:}
+      queries: [java]
+    jobicy:
+      enabled: true
+      poll-interval: PT6H
+      tags: [java, backend]
+    working-nomads:
+      enabled: true
+      poll-interval: PT6H
+    fl-ru:                            # RU - official RSS; add more feeds (other categories) to the list
+      enabled: true
+      poll-interval: PT3H
+      feeds: ["/rss/all.xml?category=5"]
+    hh:                               # RU - needs HH_CONTACT_EMAIL for the HH-User-Agent header
+      enabled: true
+      poll-interval: PT6H
+      contact-email: ${HH_CONTACT_EMAIL:}
+      queries: [java, spring]
+      work-format: REMOTE
+      employment-forms: [PROJECT, PART]
+    freelancehunt:                    # UA - needs FREELANCEHUNT_TOKEN
+      enabled: true
+      poll-interval: PT3H
+      token: ${FREELANCEHUNT_TOKEN:}
+      skill-ids: []
+    dou:                              # UA - official vacancy RSS
+      enabled: true
+      poll-interval: PT6H
+      categories: [Java]
+      remote: true
+    email-alerts:                     # job alert e-mails over IMAP (Gmail App Password); off by default
+      enabled: ${EMAIL_ALERTS_ENABLED:false}
+      poll-interval: PT15M
+      host: ${MAIL_IMAP_HOST:imap.gmail.com}
+      username: ${MAIL_USERNAME:}
+      app-password: ${MAIL_APP_PASSWORD:}
+      folder: ${MAIL_FOLDER:JobAlerts}
+    telegram-channels:                # public channels via the Telegram client API; off by default
+      enabled: ${TELEGRAM_CHANNELS_ENABLED:false}
+      poll-interval: PT30M
+      api-id: ${TELEGRAM_API_ID:}
+      api-hash: ${TELEGRAM_API_HASH:}
+      phone: ${TELEGRAM_PHONE:}
+      session-dir: ${TELEGRAM_SESSION_DIR:/data/tdlight}
