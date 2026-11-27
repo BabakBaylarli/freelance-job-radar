@@ -1,0 +1,37 @@
+# Matching rules. Edit freely - docker compose mounts this file, restart the app after changes.
+#
+# score = sum of the weights of the include keywords found in title + tags + description
+# (each keyword counts once). A job is sent to you when it is NOT excluded and score >= min-score.
+jobradar:
+  matching:
+    min-score: 4
+    # Jobs older than this are stored but not sent (avoids a flood of stale jobs on first start).
+    notify-max-age: P7D
+    include:
+      - { term: java, weight: 3 }
+      - { term: spring, weight: 3 }
+      - { term: spring boot, weight: 1 }
+      - { term: kafka, weight: 2 }
+      - { term: elasticsearch, weight: 2 }
+      - { term: postgresql, weight: 1 }
+      - { term: microservices, weight: 1 }
+      - { term: fintech, weight: 2 }
+      - { term: payments, weight: 2 }
+      - { term: banking, weight: 2 }
+      - { term: backend, weight: 1 }
+      - { term: back-end, weight: 1 }
+    exclude:
+      # seniority I am not targeting
+      - principal
+      - staff engineer
+      - 10+ years
+      - 8+ years
+      # not remote
+      - onsite
+      - on-site
+      - hybrid
+      # location restrictions that rule me out
+      - us only
+      - usa only
+      - us citizens
+      - security clearance
