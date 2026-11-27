@@ -1,0 +1,54 @@
+{
+  "00-warning": "Remotive sample payload (shape of https://remotive.com/api/remote-jobs?category=software-dev), trimmed to 4 jobs for tests.",
+  "job-count": 4,
+  "jobs": [
+    {
+      "id": 1920001,
+      "url": "https://remotive.com/remote-jobs/software-dev/senior-java-backend-engineer-1920001",
+      "title": "Senior Java Backend Engineer",
+      "company_name": "PayLane",
+      "company_logo": "https://remotive.com/job/1920001/logo",
+      "category": "Software Development",
+      "tags": ["java", "spring", "kafka", "payments"],
+      "job_type": "full_time",
+      "publication_date": "2026-11-25T09:14:03",
+      "candidate_required_location": "Europe",
+      "salary": "$90k - $120k",
+      "description": "<p>We build <strong>payments</strong> infrastructure and need a Java engineer.</p><ul><li>Spring Boot &amp; Kafka</li><li>PostgreSQL</li></ul><p>Fully remote.</p>"
+    },
+    {
+      "id": 1920002,
+      "url": "https://remotive.com/remote-jobs/software-dev/frontend-react-developer-1920002",
+      "title": "Frontend React Developer",
+      "company_name": "PixelForge",
+      "category": "Software Development",
+      "tags": ["react", "typescript"],
+      "job_type": "contract",
+      "publication_date": "2026-11-24T16:40:00",
+      "candidate_required_location": "USA Only",
+      "salary": "",
+      "description": "<p>Build UI components with React.</p>"
+    },
+    {
+      "id": 1920003,
+      "url": "https://remotive.com/remote-jobs/software-dev/backend-engineer-fintech-1920003",
+      "title": "Backend Engineer (Fintech)",
+      "company_name": "Ledgerly",
+      "category": "Software Development",
+      "tags": ["backend", "fintech"],
+      "job_type": "full_time",
+      "publication_date": "2026-11-26T07:00:00",
+      "candidate_required_location": "Worldwide",
+      "salary": "",
+      "description": "<p>Join our banking platform team. Java or Kotlin.</p>"
+    },
+    {
+      "id": 1920004,
+      "url": "",
+      "title": "Broken entry without url",
+      "company_name": "Nobody",
+      "tags": [],
+      "description": ""
+    }
+  ]
+}

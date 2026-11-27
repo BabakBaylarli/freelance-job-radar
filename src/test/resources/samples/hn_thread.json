@@ -1,0 +1,37 @@
+{
+  "id": 90000002,
+  "type": "story",
+  "title": "Ask HN: Who is hiring? (November 2026)",
+  "author": "whoishiring",
+  "children": [
+    {
+      "id": 90000101,
+      "author": "recruiter1",
+      "created_at": "2026-11-02T10:00:00.000Z",
+      "created_at_i": 1793613600,
+      "text": "Ledgerly (YC S21) | Senior Backend Engineer | Remote (EU) | Full-time | $120k-$160k<p>We run a banking-as-a-service platform on Java, Spring Boot and Kafka.<p>Apply: <a href=\"https://ledgerly.example/jobs\" rel=\"nofollow\">https://ledgerly.example/jobs</a>",
+      "children": [{"id": 90000150, "text": "Reply that must not become a job", "children": []}]
+    },
+    {
+      "id": 90000102,
+      "author": "recruiter2",
+      "created_at_i": 1793700000,
+      "text": "Gridworks | Embedded C++ Engineer | Munich, Germany | ONSITE<p>Office-based team.",
+      "children": []
+    },
+    {
+      "id": 90000103,
+      "author": "deleted-user",
+      "created_at_i": 1793710000,
+      "text": null,
+      "children": []
+    },
+    {
+      "id": 90000104,
+      "author": "recruiter3",
+      "created_at_i": 1793720000,
+      "text": "Tidepool Payments | Platform Engineer | REMOTE (Worldwide) | Java, Postgres &amp; Elasticsearch",
+      "children": []
+    }
+  ]
+}

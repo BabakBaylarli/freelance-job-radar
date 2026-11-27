@@ -1,0 +1,49 @@
+[
+  {
+    "legal": "https://remoteok.com/legal - API terms: please link back to the job URL and mention Remote OK as the source."
+  },
+  {
+    "slug": "remote-senior-java-engineer-acme-1100001",
+    "id": "1100001",
+    "epoch": 1795600000,
+    "date": "2026-11-25T10:12:00+00:00",
+    "company": "Acme Cloud",
+    "company_logo": "https://remoteok.com/assets/img/acme.png",
+    "position": "Senior Java Engineer",
+    "tags": ["java", "spring", "aws", "backend"],
+    "logo": "",
+    "description": "<p>Design and build <b>microservices</b> with Java and Spring Boot.</p><p>Elasticsearch experience is a plus.</p>",
+    "location": "Worldwide",
+    "salary_min": 100000,
+    "salary_max": 140000,
+    "apply_url": "https://remoteok.com/remote-jobs/remote-senior-java-engineer-acme-1100001",
+    "url": "https://remoteok.com/remote-jobs/remote-senior-java-engineer-acme-1100001"
+  },
+  {
+    "slug": "remote-ios-developer-appworks-1100002",
+    "id": "1100002",
+    "epoch": 1795500000,
+    "date": "2026-11-24T08:00:00+00:00",
+    "company": "AppWorks",
+    "position": "iOS Developer",
+    "tags": ["swift", "ios"],
+    "description": "<p>Swift and SwiftUI.</p>",
+    "location": "",
+    "salary_min": 0,
+    "salary_max": 0,
+    "url": "https://remoteok.com/remote-jobs/remote-ios-developer-appworks-1100002"
+  },
+  {
+    "slug": "remote-payments-backend-engineer-1100003",
+    "id": "1100003",
+    "epoch": 1795650000,
+    "company": "Moneta",
+    "position": "Payments Backend Engineer",
+    "tags": ["payments", "kafka", "java"],
+    "description": "Payments platform. Kafka. Java.",
+    "location": "Europe",
+    "salary_min": 80000,
+    "salary_max": 0,
+    "url": "https://remoteok.com/remote-jobs/remote-payments-backend-engineer-1100003"
+  }
+]
